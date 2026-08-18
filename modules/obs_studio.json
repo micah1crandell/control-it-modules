@@ -1,0 +1,199 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "obs_studio",
+  "name": "OBS Studio",
+  "shortName": "OBS",
+  "manufacturer": "OBS Project",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Video Switcher & Streaming Control",
+  "descriptionText": "Control scenes, sources, audio, streaming, and recording on OBS Studio 28+ via direct persistent WebSocket connection with instant tally feedback.",
+  "iconName": "video.fill",
+  "iconColorHex": "#303F9F",
+  "defaultPort": "4455",
+  "defaultProtocol": "CUSTOM",
+  "defaultHost": "127.0.0.1",
+  "helpUrl": "https://obsproject.com/wiki/OBS-WebSocket-5.0",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "CUSTOM",
+    "transport": "WEBSOCKET",
+    "defaultPort": "4455",
+    "defaultHost": "127.0.0.1",
+    "autoConnectOnLaunch": true,
+    "heartbeatIntervalMs": 5000,
+    "discovery": {
+      "type": "bonjour",
+      "serviceType": "_obs-websocket._tcp",
+      "autoFillHost": true
+    },
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "OBS Host / IP",
+        "type": "Text",
+        "defaultValue": "127.0.0.1",
+        "placeholder": "e.g. 192.168.1.50",
+        "helpText": "Enter the IP address of the computer running OBS Studio.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "WebSocket Port",
+        "type": "Number",
+        "defaultValue": "4455",
+        "placeholder": "4455",
+        "helpText": "Standard OBS WebSocket v5 port is 4455.",
+        "isRequired": true
+      },
+      {
+        "id": "password",
+        "label": "WebSocket Password",
+        "type": "Text",
+        "defaultValue": "",
+        "placeholder": "Leave blank if no auth",
+        "helpText": "Found in OBS Studio under Tools > WebSocket Server Settings.",
+        "isRequired": false,
+        "isSecret": true
+      }
+    ]
+  },
+  "driverScript": "module.exports = {\n  identified: false,\n  password: '',\n\n  onConnect: function(transport, config) {\n    this.identified = false;\n    this.password = config.password || '';\n    engine.setStatus('connecting', 'Connecting to OBS WebSocket...');\n  },\n\n  onMessage: function(transport, messageText) {\n    if (!messageText) return;\n    var msg;\n    try {\n      msg = JSON.parse(messageText);\n    } catch(e) {\n      return;\n    }\n\n    var op = msg.op;\n    var d = msg.d || {};\n\n    if (op === 0) {\n      var rpcVersion = d.rpcVersion || 1;\n      var auth = d.authentication;\n      var identifyData = {\n        rpcVersion: rpcVersion,\n        eventSubscriptions: 33\n      };\n\n      if (auth && this.password) {\n        var challenge = auth.challenge;\n        var salt = auth.salt;\n        var secretHash = engine.crypto.sha256(this.password + salt);\n        var secretBytes = engine.buffer.fromHex(secretHash);\n        var secretBase64 = engine.crypto.base64Encode(secretBytes);\n        var authHash = engine.crypto.sha256(secretBase64 + challenge);\n        var authBytes = engine.buffer.fromHex(authHash);\n        identifyData.authentication = engine.crypto.base64Encode(authBytes);\n      }\n\n      transport.sendJSON({ op: 1, d: identifyData });\n      engine.setStatus('authenticating', 'Identifying with OBS...');\n    } else if (op === 2) {\n      this.identified = true;\n      engine.setStatus('connected', 'Connected to OBS Studio');\n      transport.sendJSON({\n        op: 6,\n        d: {\n          requestType: 'GetCurrentProgramScene',\n          requestId: 'init_scene'\n        }\n      });\n      transport.sendJSON({\n        op: 6,\n        d: {\n          requestType: 'GetStreamStatus',\n          requestId: 'init_stream'\n        }\n      });\n      transport.sendJSON({\n        op: 6,\n        d: {\n          requestType: 'GetRecordStatus',\n          requestId: 'init_record'\n        }\n      });\n    } else if (op === 5) {\n      var eventType = d.eventType;\n      var eventData = d.eventData || {};\n\n      if (eventType === 'CurrentProgramSceneChanged') {\n        var scene = eventData.sceneName || '';\n        engine.setVariable('obs_current_scene', scene);\n      } else if (eventType === 'CurrentPreviewSceneChanged') {\n        var scene = eventData.sceneName || '';\n        engine.setVariable('obs_preview_scene', scene);\n      } else if (eventType === 'StreamStateChanged') {\n        engine.setVariable('obs_is_streaming', eventData.outputActive ? 'true' : 'false');\n      } else if (eventType === 'RecordStateChanged') {\n        engine.setVariable('obs_is_recording', eventData.outputActive ? 'true' : 'false');\n      } else if (eventType === 'InputMuteStateChanged') {\n        var inputName = eventData.inputName || '';\n        engine.setVariable('obs_audio_' + inputName + '_muted', eventData.inputMuted ? 'true' : 'false');\n      }\n    } else if (op === 7) {\n      var reqType = d.requestType;\n      var resData = d.responseData || {};\n      if (reqType === 'GetCurrentProgramScene' && resData.currentProgramSceneName) {\n        engine.setVariable('obs_current_scene', resData.currentProgramSceneName);\n      } else if (reqType === 'GetStreamStatus') {\n        engine.setVariable('obs_is_streaming', resData.outputActive ? 'true' : 'false');\n      } else if (reqType === 'GetRecordStatus') {\n        engine.setVariable('obs_is_recording', resData.outputActive ? 'true' : 'false');\n      }\n    }\n  },\n\n  onAction: function(transport, actionId, params) {\n    params = params || {};\n    var rawAct = String(actionId || '').toLowerCase().trim();\n    var act = rawAct.replace(/^\\/+/, '');\n    if (act.indexOf('/') !== -1) {\n      act = act.split('/').pop();\n    }\n    act = act.replace(/^obs_/, '').replace(/^obs\\./, '').replace(/^obs-/, '');\n    var reqId = 'act_' + Date.now();\n\n    if (act === 'switch_scene' || act === 'set_scene' || act === 'scene') {\n      var scene = params.scene_name || params.scene || params.value || params.param || '';\n      transport.sendJSON({\n        op: 6,\n        d: {\n          requestType: 'SetCurrentProgramScene',\n          requestId: reqId,\n          requestData: { sceneName: scene }\n        }\n      });\n      engine.setVariable('obs_current_scene', scene);\n      return 'Switched scene to ' + scene;\n    } else if (act === 'toggle_stream' || act === 'stream') {\n      transport.sendJSON({\n        op: 6,\n        d: { requestType: 'ToggleStream', requestId: reqId }\n      });\n      return 'Toggled streaming';\n    } else if (act === 'toggle_record' || act === 'record') {\n      transport.sendJSON({\n        op: 6,\n        d: { requestType: 'ToggleRecord', requestId: reqId }\n      });\n      return 'Toggled recording';\n    } else if (act === 'mute_input' || act === 'toggle_mute' || act === 'mute') {\n      var input = params.input_name || params.input || params.value || params.param || 'Mic/Aux';\n      transport.sendJSON({\n        op: 6,\n        d: {\n          requestType: 'ToggleInputMute',\n          requestId: reqId,\n          requestData: { inputName: input }\n        }\n      });\n      return 'Toggled mute for ' + input;\n    }\n    return 'Executed action ' + actionId;\n  },\n\n  onHeartbeat: function(transport) {\n    if (this.identified) {\n      transport.sendJSON({\n        op: 6,\n        d: {\n          requestType: 'GetStreamStatus',\n          requestId: 'hb_stream'\n        }\n      });\n    }\n  }\n};",
+  "variables": [
+    {
+      "id": "obs_current_scene",
+      "name": "Current Scene",
+      "descriptionText": "Active program scene name",
+      "sampleValue": "Main Camera",
+      "variableType": "String"
+    },
+    {
+      "id": "obs_preview_scene",
+      "name": "Preview Scene",
+      "descriptionText": "Active studio preview scene name",
+      "sampleValue": "Screenshare",
+      "variableType": "String"
+    },
+    {
+      "id": "obs_is_streaming",
+      "name": "Streaming Active",
+      "descriptionText": "Whether OBS is currently streaming",
+      "sampleValue": "true",
+      "variableType": "Boolean"
+    },
+    {
+      "id": "obs_is_recording",
+      "name": "Recording Active",
+      "descriptionText": "Whether OBS is currently recording",
+      "sampleValue": "false",
+      "variableType": "Boolean"
+    }
+  ],
+  "actions": [
+    {
+      "id": "obs_switch_scene",
+      "title": "OBS: Switch Scene",
+      "subtitle": "Change active program scene",
+      "descriptionText": "Switches OBS Studio to the designated scene name.",
+      "iconName": "tv.fill",
+      "iconColorHex": "#3F51B5",
+      "connectionType": "CUSTOM",
+      "defaultPort": "4455",
+      "inputs": [
+        {
+          "id": "scene_name",
+          "label": "Scene Name",
+          "type": "Text",
+          "defaultValue": "Main Camera",
+          "placeholder": "e.g. Intro, Screen Share, Cam 1",
+          "isRequired": true
+        }
+      ],
+      "oscPath": "switch_scene",
+      "oscValue": "{scene_name}",
+      "dynamicTitleParsingRule": "{{obs_current_scene}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{obs_current_scene}} == {scene_name}",
+          "colorName": "Blue"
+        }
+      ]
+    },
+    {
+      "id": "obs_toggle_stream",
+      "title": "OBS: Toggle Streaming",
+      "subtitle": "Start or stop live broadcast",
+      "descriptionText": "Toggles streaming output in OBS Studio.",
+      "iconName": "antenna.radiowaves.left.and.right",
+      "iconColorHex": "#E53935",
+      "connectionType": "CUSTOM",
+      "defaultPort": "4455",
+      "oscPath": "toggle_stream",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "STREAM: {{obs_is_streaming}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{obs_is_streaming}} == true",
+          "colorName": "Red"
+        }
+      ]
+    },
+    {
+      "id": "obs_toggle_record",
+      "title": "OBS: Toggle Recording",
+      "subtitle": "Start or stop local recording",
+      "descriptionText": "Toggles recording state in OBS Studio.",
+      "iconName": "record.circle",
+      "iconColorHex": "#C2185B",
+      "connectionType": "CUSTOM",
+      "defaultPort": "4455",
+      "oscPath": "toggle_record",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "REC: {{obs_is_recording}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{obs_is_recording}} == true",
+          "colorName": "Purple"
+        }
+      ]
+    },
+    {
+      "id": "obs_mute_input",
+      "title": "OBS: Toggle Audio Mute",
+      "subtitle": "Mute or unmute audio source",
+      "descriptionText": "Toggles mute status for a specified microphone or audio source.",
+      "iconName": "mic.slash.fill",
+      "iconColorHex": "#F57C00",
+      "connectionType": "CUSTOM",
+      "defaultPort": "4455",
+      "inputs": [
+        {
+          "id": "input_name",
+          "label": "Audio Source Name",
+          "type": "Text",
+          "defaultValue": "Mic/Aux",
+          "placeholder": "e.g. Mic/Aux, Desktop Audio",
+          "isRequired": true
+        }
+      ],
+      "oscPath": "mute_input",
+      "oscValue": "{input_name}",
+      "dynamicTitleParsingRule": "MUTE {input_name}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{obs_audio_{input_name}_muted}} == true",
+          "colorName": "Red"
+        },
+        {
+          "id": "c2",
+          "condition": "{{obs_audio_{input_name}_muted}} == false",
+          "colorName": "Green"
+        }
+      ]
+    }
+  ]
+}

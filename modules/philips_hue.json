@@ -1,0 +1,135 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "philips_hue",
+  "name": "Philips Hue",
+  "shortName": "Hue",
+  "manufacturer": "Signify (Philips Hue)",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Smart Lighting & Studio Tally Illumination",
+  "descriptionText": "Control smart bulbs, light strips, color scenes, brightness, and tally alerts via local Philips Hue Bridge API.",
+  "iconName": "lightbulb.fill",
+  "iconColorHex": "#FF9800",
+  "defaultPort": "80",
+  "defaultProtocol": "HTTP",
+  "defaultHost": "192.168.1.50",
+  "helpUrl": "https://developers.meethue.com",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "HTTP",
+    "transport": "TCP",
+    "defaultPort": "80",
+    "defaultHost": "192.168.1.50",
+    "discovery": {
+      "type": "bonjour",
+      "serviceType": "_hue._tcp",
+      "autoFillHost": true
+    },
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "Hue Bridge IP",
+        "type": "Text",
+        "defaultValue": "192.168.1.50",
+        "placeholder": "192.168.1.50",
+        "helpText": "Enter IP address of your Philips Hue Bridge.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "Port",
+        "type": "Number",
+        "defaultValue": "80",
+        "placeholder": "80",
+        "isRequired": true
+      },
+      {
+        "id": "username",
+        "label": "Hue API App Key / Username",
+        "type": "Text",
+        "defaultValue": "",
+        "placeholder": "Generated Hue API key",
+        "helpText": "Obtained by pairing with the bridge button.",
+        "isRequired": false,
+        "isSecret": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "hue_group_1_on",
+      "name": "Group 1 On State",
+      "descriptionText": "Whether group 1 lights are turned on",
+      "sampleValue": "true",
+      "variableType": "Boolean"
+    }
+  ],
+  "actions": [
+    {
+      "id": "hue_tally_red",
+      "title": "Hue: Tally Red (On Air)",
+      "subtitle": "Turn studio light solid RED",
+      "descriptionText": "Sets target light to bright red indicating active recording/broadcast.",
+      "iconName": "record.circle.fill",
+      "iconColorHex": "#D50000",
+      "connectionType": "HTTP",
+      "defaultPort": "80",
+      "inputs": [
+        {
+          "id": "light_id",
+          "label": "Light ID",
+          "type": "Text",
+          "defaultValue": "1",
+          "placeholder": "1, 2, 3..."
+        }
+      ],
+      "uri": "/api/your_hue_username/lights/{light_id}/state",
+      "httpMethod": "PUT",
+      "requestBody": "{\"on\": true, \"hue\": 0, \"sat\": 254, \"bri\": 254}",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" }
+      ],
+      "dynamicTitleParsingRule": "TALLY ON AIR",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{hue_light_{light_id}_on}} == true",
+          "colorName": "Red"
+        }
+      ]
+    },
+    {
+      "id": "hue_tally_green",
+      "title": "Hue: Tally Green (Standby)",
+      "subtitle": "Turn studio light solid GREEN",
+      "descriptionText": "Sets target light to green indicating standby / ready.",
+      "iconName": "checkmark.circle.fill",
+      "iconColorHex": "#2E7D32",
+      "connectionType": "HTTP",
+      "defaultPort": "80",
+      "inputs": [
+        {
+          "id": "light_id",
+          "label": "Light ID",
+          "type": "Text",
+          "defaultValue": "1",
+          "placeholder": "1, 2, 3..."
+        }
+      ],
+      "uri": "/api/your_hue_username/lights/{light_id}/state",
+      "httpMethod": "PUT",
+      "requestBody": "{\"on\": true, \"hue\": 25500, \"sat\": 254, \"bri\": 254}",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" }
+      ],
+      "dynamicTitleParsingRule": "TALLY STANDBY",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{hue_light_{light_id}_on}} == true",
+          "colorName": "Green"
+        }
+      ]
+    }
+  ]
+}

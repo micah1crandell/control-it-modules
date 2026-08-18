@@ -1,0 +1,129 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "vlc_media_player",
+  "name": "VLC Media Player",
+  "shortName": "VLC",
+  "manufacturer": "VideoLAN (VLC)",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Video & Audio File Player",
+  "descriptionText": "Control video roll-ins, playback pause/resume, stop, fullscreen, and playlist item triggers on VLC Media Player via HTTP / TCP interface.",
+  "iconName": "play.tv.fill",
+  "iconColorHex": "#FF9800",
+  "defaultPort": "8080",
+  "defaultProtocol": "HTTP",
+  "defaultHost": "127.0.0.1",
+  "helpUrl": "https://wiki.videolan.org/Documentation:Modules/http_intf",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "HTTP",
+    "transport": "TCP",
+    "defaultPort": "8080",
+    "defaultHost": "127.0.0.1",
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "VLC Host / IP",
+        "type": "Text",
+        "defaultValue": "127.0.0.1",
+        "placeholder": "127.0.0.1",
+        "helpText": "Enter IP address of computer running VLC.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "HTTP Web Port",
+        "type": "Number",
+        "defaultValue": "8080",
+        "placeholder": "8080",
+        "helpText": "Configured under VLC Preferences > All > Main Interfaces > Lua HTTP.",
+        "isRequired": true
+      },
+      {
+        "id": "password",
+        "label": "Lua HTTP Password",
+        "type": "Text",
+        "defaultValue": "",
+        "placeholder": "Password set in VLC",
+        "isRequired": false,
+        "isSecret": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "vlc_state",
+      "name": "Playback State",
+      "descriptionText": "Current playback status (playing/paused/stopped)",
+      "sampleValue": "playing",
+      "variableType": "String"
+    }
+  ],
+  "actions": [
+    {
+      "id": "vlc_play_pause",
+      "title": "VLC: Play / Pause",
+      "subtitle": "Toggle video playback",
+      "descriptionText": "Toggles play/pause state of active media in VLC.",
+      "iconName": "playpause.fill",
+      "iconColorHex": "#FB8C00",
+      "connectionType": "HTTP",
+      "defaultPort": "8080",
+      "uri": "/requests/status.xml?command=pl_pause",
+      "httpMethod": "GET",
+      "dynamicTitleParsingRule": "VLC: {{vlc_state}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{vlc_state}} == playing",
+          "colorName": "Green"
+        },
+        {
+          "id": "c2",
+          "condition": "{{vlc_state}} == paused",
+          "colorName": "Orange"
+        }
+      ]
+    },
+    {
+      "id": "vlc_stop",
+      "title": "VLC: Stop Playback",
+      "subtitle": "Stop and reset video",
+      "descriptionText": "Stops active playback in VLC.",
+      "iconName": "stop.fill",
+      "iconColorHex": "#F57C00",
+      "connectionType": "HTTP",
+      "defaultPort": "8080",
+      "uri": "/requests/status.xml?command=pl_stop",
+      "httpMethod": "GET",
+      "dynamicTitleParsingRule": "VLC STOP",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{vlc_state}} == stopped",
+          "colorName": "Red"
+        }
+      ]
+    },
+    {
+      "id": "vlc_next",
+      "title": "VLC: Next Video / Item",
+      "subtitle": "Skip to next playlist item",
+      "descriptionText": "Advances VLC playlist to next video clip.",
+      "iconName": "forward.end.fill",
+      "iconColorHex": "#EF6C00",
+      "connectionType": "HTTP",
+      "defaultPort": "8080",
+      "uri": "/requests/status.xml?command=pl_next",
+      "httpMethod": "GET",
+      "dynamicTitleParsingRule": "VLC NEXT",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{vlc_state}} == playing",
+          "colorName": "Green"
+        }
+      ]
+    }
+  ]
+}

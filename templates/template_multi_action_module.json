@@ -1,0 +1,186 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "starter_multi_action_studio",
+  "name": "Production Studio Hub (Multi-Action Example)",
+  "shortName": "Studio Hub",
+  "manufacturer": "Custom / Community",
+  "version": "2.0.0",
+  "author": "Control-It Developer Team",
+  "subtitle": "Comprehensive Multi-Action Example Module",
+  "descriptionText": "A comprehensive example module demonstrating persistent network sessions, dynamic setup wizards, 8 diverse action types, parameter substitution {param}, dropdowns, toggles, numeric sliders, raw hex, OSC, MIDI, and JavaScript driver scripts.",
+  "iconName": "slider.horizontal.3",
+  "iconColorHex": "#5856D6",
+  "defaultPort": "8080",
+  "defaultProtocol": "HTTP",
+  "defaultHost": "192.168.1.100",
+  "origin": "Custom",
+  "connectionConfig": {
+    "protocol": "CUSTOM_SCRIPT",
+    "transport": "WEBSOCKET",
+    "defaultPort": "8080",
+    "defaultHost": "192.168.1.100",
+    "autoConnectOnLaunch": true,
+    "heartbeatIntervalMs": 5000,
+    "discovery": {
+      "type": "bonjour",
+      "serviceType": "_studio-hub._tcp",
+      "autoFillHost": true
+    },
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "Host / IP Address",
+        "type": "Text",
+        "defaultValue": "192.168.1.100",
+        "placeholder": "e.g. 192.168.1.100",
+        "helpText": "Enter the IP address of your studio controller.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "Port",
+        "type": "Number",
+        "defaultValue": "8080",
+        "placeholder": "8080",
+        "helpText": "Network port used by the studio API.",
+        "isRequired": true
+      },
+      {
+        "id": "api_key",
+        "label": "API Key / Token",
+        "type": "Text",
+        "defaultValue": "",
+        "placeholder": "Enter secret token",
+        "helpText": "Authentication token if required by your device.",
+        "isRequired": false,
+        "isSecret": true
+      }
+    ]
+  },
+  "driverScript": "module.exports = {\n  onConnect: function(transport, config) {\n    console.log('Connected to Studio Hub at ' + config.host);\n    engine.setVariable('studio_online', 'true');\n  },\n  onMessage: function(transport, msg) {\n    try {\n      var data = JSON.parse(msg);\n      if (data.active_scene) engine.setVariable('current_scene', data.active_scene);\n      if (data.recording !== undefined) engine.setVariable('is_recording', String(data.recording));\n    } catch (e) {}\n  },\n  onAction: function(transport, actionId, params) {\n    transport.sendJSON({ action: actionId, params: params });\n    return 'Action sent: ' + actionId;\n  },\n  onDisconnect: function() {\n    engine.setVariable('studio_online', 'false');\n  }\n};",
+  "variables": [
+    {
+      "id": "current_scene",
+      "name": "Active Program Scene",
+      "descriptionText": "Name of the active video scene",
+      "sampleValue": "Main Cameras",
+      "variableType": "String"
+    },
+    {
+      "id": "is_recording",
+      "name": "Recording Active",
+      "descriptionText": "Whether local recording is active",
+      "sampleValue": "true",
+      "variableType": "Boolean"
+    },
+    {
+      "id": "master_volume",
+      "name": "Master Volume Level",
+      "descriptionText": "Master audio output level (0-100)",
+      "sampleValue": "75",
+      "variableType": "Number"
+    }
+  ],
+  "actions": [
+    {
+      "id": "studio_get_status",
+      "title": "Get System Status",
+      "subtitle": "Poll live device telemetry",
+      "descriptionText": "Performs an HTTP GET to retrieve real-time device health, current scene, and audio telemetry.",
+      "iconName": "waveform.path.ecg",
+      "iconColorHex": "#0A84FF",
+      "connectionType": "HTTP",
+      "defaultPort": "8080",
+      "uri": "/api/v1/system/status",
+      "httpMethod": "GET",
+      "headers": [
+        { "key": "Accept", "value": "application/json" }
+      ]
+    },
+    {
+      "id": "studio_toggle_power",
+      "title": "Toggle System Power",
+      "subtitle": "Turn studio standby ON/OFF",
+      "descriptionText": "Sends a power state change to the device with a toggle input parameter.",
+      "iconName": "power",
+      "iconColorHex": "#30D158",
+      "connectionType": "HTTP",
+      "defaultPort": "8080",
+      "inputs": [
+        {
+          "id": "state",
+          "label": "Power State",
+          "type": "Toggle",
+          "defaultValue": "on",
+          "descriptionText": "Select 'on' or 'off'"
+        }
+      ],
+      "uri": "/api/v1/system/power",
+      "httpMethod": "POST",
+      "requestBody": "{\"state\": \"{state}\"}",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" }
+      ]
+    },
+    {
+      "id": "studio_select_input",
+      "title": "Select Video Input",
+      "subtitle": "Switch live camera source",
+      "descriptionText": "Switches the active video source on the broadcast switcher using a dropdown menu.",
+      "iconName": "video.badge.checkmark",
+      "iconColorHex": "#FF9500",
+      "connectionType": "HTTP",
+      "defaultPort": "8080",
+      "inputs": [
+        {
+          "id": "input_id",
+          "label": "Camera Source",
+          "type": "Dropdown",
+          "defaultValue": "Camera 1",
+          "dropdownChoices": ["Camera 1", "Camera 2", "Camera 3", "Camera 4", "Aux 1", "Media Player"],
+          "descriptionText": "Select which camera input to send to Program."
+        }
+      ],
+      "uri": "/api/v1/switcher/source",
+      "httpMethod": "POST",
+      "requestBody": "{\"source\": \"{input_id}\"}",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" }
+      ]
+    },
+    {
+      "id": "studio_set_master_gain",
+      "title": "Set Master Audio Gain",
+      "subtitle": "Adjust audio level via OSC",
+      "descriptionText": "Sends an OSC message adjusting the main stereo fader.",
+      "iconName": "speaker.wave.3.fill",
+      "iconColorHex": "#AF52DE",
+      "connectionType": "OSC",
+      "defaultPort": "10023",
+      "inputs": [
+        {
+          "id": "gain_db",
+          "label": "Fader Level (0.0 to 1.0)",
+          "type": "Text",
+          "defaultValue": "0.75",
+          "placeholder": "0.0 - 1.0",
+          "descriptionText": "Normalized fader volume level."
+        }
+      ],
+      "oscPath": "/master/fader",
+      "oscValue": "{gain_db}"
+    },
+    {
+      "id": "studio_midi_cue",
+      "title": "Send Stage Cue (MIDI)",
+      "subtitle": "Fire lighting cue note",
+      "descriptionText": "Transmits a MIDI Note On trigger to the lighting console.",
+      "iconName": "music.note",
+      "iconColorHex": "#FF2D55",
+      "connectionType": "MIDI",
+      "statusByte": 144,
+      "dataByte1": 60,
+      "dataByte2": 127
+    }
+  ]
+}

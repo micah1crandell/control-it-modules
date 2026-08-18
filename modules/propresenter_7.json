@@ -1,0 +1,123 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "propresenter_7",
+  "name": "ProPresenter 7",
+  "shortName": "ProPresenter",
+  "manufacturer": "Renewed Vision",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Live Presentation & Lyrics Control",
+  "descriptionText": "Control slides, stage displays, media playlists, clear layers, and triggers on Renewed Vision ProPresenter 7 via direct API / WebSocket.",
+  "iconName": "tv.fill",
+  "iconColorHex": "#1565C0",
+  "defaultPort": "1025",
+  "defaultProtocol": "HTTP",
+  "defaultHost": "127.0.0.1",
+  "helpUrl": "https://renewedvision.com/propresenter",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "HTTP",
+    "transport": "TCP",
+    "defaultPort": "1025",
+    "defaultHost": "127.0.0.1",
+    "autoConnectOnLaunch": true,
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "ProPresenter Host / IP",
+        "type": "Text",
+        "defaultValue": "127.0.0.1",
+        "placeholder": "127.0.0.1",
+        "helpText": "Enter IP address of computer running ProPresenter 7.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "Network Port",
+        "type": "Number",
+        "defaultValue": "1025",
+        "placeholder": "1025",
+        "helpText": "Default ProPresenter API port is 1025 or 50001.",
+        "isRequired": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "current_slide",
+      "name": "Current Slide Index",
+      "descriptionText": "Current active slide index",
+      "sampleValue": "3",
+      "variableType": "Number"
+    },
+    {
+      "id": "presentation_name",
+      "name": "Presentation Name",
+      "descriptionText": "Name of active presentation document",
+      "sampleValue": "Sunday Worship",
+      "variableType": "String"
+    }
+  ],
+  "actions": [
+    {
+      "id": "propresenter_next_slide",
+      "title": "ProPresenter: Next Slide",
+      "subtitle": "Advance presentation",
+      "descriptionText": "Triggers the next slide in the active presentation or playlist.",
+      "iconName": "forward.fill",
+      "iconColorHex": "#1E88E5",
+      "connectionType": "HTTP",
+      "defaultPort": "1025",
+      "uri": "/v1/trigger/next",
+      "httpMethod": "POST",
+      "dynamicTitleParsingRule": "SLIDE {{current_slide}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{current_slide}} > 0",
+          "colorName": "Blue"
+        }
+      ]
+    },
+    {
+      "id": "propresenter_prev_slide",
+      "title": "ProPresenter: Previous Slide",
+      "subtitle": "Go back one slide",
+      "descriptionText": "Triggers the previous slide in the active presentation.",
+      "iconName": "backward.fill",
+      "iconColorHex": "#1976D2",
+      "connectionType": "HTTP",
+      "defaultPort": "1025",
+      "uri": "/v1/trigger/prev",
+      "httpMethod": "POST",
+      "dynamicTitleParsingRule": "SLIDE {{current_slide}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{current_slide}} > 1",
+          "colorName": "Blue"
+        }
+      ]
+    },
+    {
+      "id": "propresenter_clear_all",
+      "title": "ProPresenter: Clear All",
+      "subtitle": "Clear presentation & props",
+      "descriptionText": "Instantly clears all active presentation, media, and announcement layers.",
+      "iconName": "xmark.circle.fill",
+      "iconColorHex": "#C62828",
+      "connectionType": "HTTP",
+      "defaultPort": "1025",
+      "uri": "/v1/clear/all",
+      "httpMethod": "POST",
+      "dynamicTitleParsingRule": "CLEAR ALL",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{current_slide}} == 0",
+          "colorName": "Green"
+        }
+      ]
+    }
+  ]
+}

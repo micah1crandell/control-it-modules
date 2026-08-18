@@ -1,0 +1,107 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "spotify_player",
+  "name": "Spotify",
+  "shortName": "Spotify",
+  "manufacturer": "Spotify AB",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Music Playback & Pre-show Audio",
+  "descriptionText": "Control pre-service background music, playback states, track skips, and volume via Spotify Web API.",
+  "iconName": "music.note",
+  "iconColorHex": "#1DB954",
+  "defaultPort": "443",
+  "defaultProtocol": "HTTP",
+  "defaultHost": "api.spotify.com",
+  "helpUrl": "https://developer.spotify.com/documentation/web-api",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "HTTP",
+    "transport": "TCP",
+    "defaultPort": "443",
+    "defaultHost": "api.spotify.com",
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "API Host",
+        "type": "Text",
+        "defaultValue": "api.spotify.com",
+        "placeholder": "api.spotify.com",
+        "isRequired": true
+      },
+      {
+        "id": "oauth_token",
+        "label": "Spotify OAuth Access Token",
+        "type": "Text",
+        "defaultValue": "",
+        "placeholder": "Bearer ...",
+        "helpText": "OAuth token with user-modify-playback-state scope.",
+        "isRequired": true,
+        "isSecret": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "track_name",
+      "name": "Current Track",
+      "descriptionText": "Name of the playing track",
+      "sampleValue": "Background Acoustic",
+      "variableType": "String"
+    },
+    {
+      "id": "is_playing",
+      "name": "Is Playing",
+      "descriptionText": "Playback state",
+      "sampleValue": "true",
+      "variableType": "Boolean"
+    }
+  ],
+  "actions": [
+    {
+      "id": "spotify_play_pause",
+      "title": "Spotify: Play / Pause",
+      "subtitle": "Toggle playback state",
+      "descriptionText": "Resumes or pauses active Spotify playback session.",
+      "iconName": "playpause.fill",
+      "iconColorHex": "#1DB954",
+      "connectionType": "HTTP",
+      "defaultPort": "443",
+      "uri": "/v1/me/player/play",
+      "httpMethod": "PUT",
+      "dynamicTitleParsingRule": "SPOTIFY: {{is_playing}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{is_playing}} == true",
+          "colorName": "Green"
+        },
+        {
+          "id": "c2",
+          "condition": "{{is_playing}} == false",
+          "colorName": "Orange"
+        }
+      ]
+    },
+    {
+      "id": "spotify_next_track",
+      "title": "Spotify: Next Track",
+      "subtitle": "Skip to next song",
+      "descriptionText": "Skips playback to the next song in the active playlist queue.",
+      "iconName": "forward.end.fill",
+      "iconColorHex": "#1ED760",
+      "connectionType": "HTTP",
+      "defaultPort": "443",
+      "uri": "/v1/me/player/next",
+      "httpMethod": "POST",
+      "dynamicTitleParsingRule": "NEXT TRACK",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{is_playing}} == true",
+          "colorName": "Green"
+        }
+      ]
+    }
+  ]
+}

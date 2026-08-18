@@ -1,0 +1,137 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "vmix_switcher",
+  "name": "vMix",
+  "shortName": "vMix",
+  "manufacturer": "StudioCoast (vMix)",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Live Video Production Software",
+  "descriptionText": "Trigger transitions, active inputs, overlays, titles, and audio mixing on vMix Live Production software via HTTP / TCP API.",
+  "iconName": "film.fill",
+  "iconColorHex": "#0D47A1",
+  "defaultPort": "8088",
+  "defaultProtocol": "HTTP",
+  "defaultHost": "192.168.1.100",
+  "helpUrl": "https://www.vmix.com/help26/WebAPI.html",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "HTTP",
+    "transport": "TCP",
+    "defaultPort": "8088",
+    "defaultHost": "192.168.1.100",
+    "autoConnectOnLaunch": true,
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "vMix PC IP Address",
+        "type": "Text",
+        "defaultValue": "192.168.1.100",
+        "placeholder": "192.168.1.100",
+        "helpText": "Enter IP address of the Windows PC running vMix.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "Web API Port",
+        "type": "Number",
+        "defaultValue": "8088",
+        "placeholder": "8088",
+        "helpText": "Default vMix Web API port is 8088 (or 8099 for TCP).",
+        "isRequired": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "vmix_active_input",
+      "name": "Active Program Input",
+      "descriptionText": "Current live camera/video input index",
+      "sampleValue": "1",
+      "variableType": "Number"
+    },
+    {
+      "id": "vmix_preview_input",
+      "name": "Preview Input",
+      "descriptionText": "Current cued preview input index",
+      "sampleValue": "2",
+      "variableType": "Number"
+    }
+  ],
+  "actions": [
+    {
+      "id": "vmix_cut",
+      "title": "vMix: Cut Transition",
+      "subtitle": "Instant switch to preview input",
+      "descriptionText": "Executes an immediate hard cut transition.",
+      "iconName": "scissors",
+      "iconColorHex": "#1976D2",
+      "connectionType": "HTTP",
+      "defaultPort": "8088",
+      "uri": "/api/?Function=Cut",
+      "httpMethod": "GET",
+      "dynamicTitleParsingRule": "CUT",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{vmix_in_transition}} == true",
+          "colorName": "Yellow"
+        }
+      ]
+    },
+    {
+      "id": "vmix_fade_1s",
+      "title": "vMix: Fade Transition (1s)",
+      "subtitle": "1000ms cross dissolve",
+      "descriptionText": "Performs a 1-second cross dissolve transition.",
+      "iconName": "wand.and.stars",
+      "iconColorHex": "#1565C0",
+      "connectionType": "HTTP",
+      "defaultPort": "8088",
+      "uri": "/api/?Function=Fade&Duration=1000",
+      "httpMethod": "GET",
+      "dynamicTitleParsingRule": "FADE",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{vmix_in_transition}} == true",
+          "colorName": "Red"
+        }
+      ]
+    },
+    {
+      "id": "vmix_active_input_1",
+      "title": "vMix: Set Active Input",
+      "subtitle": "Set program camera/video",
+      "descriptionText": "Directly sets the active Program output to a specified input index.",
+      "iconName": "video.fill",
+      "iconColorHex": "#0D47A1",
+      "connectionType": "HTTP",
+      "defaultPort": "8088",
+      "inputs": [
+        {
+          "id": "input_number",
+          "label": "Input Number",
+          "type": "Dropdown",
+          "defaultValue": "1",
+          "dropdownChoices": ["1", "2", "3", "4", "5", "6", "7", "8"]
+        }
+      ],
+      "uri": "/api/?Function=ActiveInput&Input={input_number}",
+      "httpMethod": "GET",
+      "dynamicTitleParsingRule": "PGM {input_number}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{vmix_active_input}} == {input_number}",
+          "colorName": "Red"
+        },
+        {
+          "id": "c2",
+          "condition": "{{vmix_preview_input}} == {input_number}",
+          "colorName": "Green"
+        }
+      ]
+    }
+  ]
+}

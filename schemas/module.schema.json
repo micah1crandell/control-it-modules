@@ -1,0 +1,246 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "title": "Control-It Companion Module Specification",
+  "description": "Standardized schema for Control-It community and hardware integration modules.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "version",
+    "manufacturer",
+    "actions"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URI pointing to this JSON Schema definition."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_\\-]+$",
+      "description": "Unique identifier for the module (lowercase alphanumeric with underscores/hyphens)."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Full display name of the module or controlled device."
+    },
+    "shortName": {
+      "type": "string",
+      "description": "Abbreviated badge or pill name for compact UI presentation."
+    },
+    "manufacturer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Manufacturer or creator of the target hardware/software."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "Semantic version string (e.g. 1.0.0, 2.1.0)."
+    },
+    "author": {
+      "type": "string",
+      "description": "Author or maintainer of the module."
+    },
+    "subtitle": {
+      "type": "string",
+      "description": "Brief one-line summary of device capabilities."
+    },
+    "descriptionText": {
+      "type": "string",
+      "description": "Detailed explanation of what the module controls and protocol notes."
+    },
+    "iconName": {
+      "type": "string",
+      "description": "SF Symbols icon identifier (e.g. 'slider.vertical.3', 'video.fill')."
+    },
+    "iconColorHex": {
+      "type": "string",
+      "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+      "description": "Brand or theme color in hex format (e.g. '#FF9500')."
+    },
+    "defaultPort": {
+      "type": "string",
+      "description": "Default network port number (e.g. '80', '4455', '9910')."
+    },
+    "defaultProtocol": {
+      "type": "string",
+      "enum": ["HTTP", "HTTPS", "TCP", "UDP", "OSC", "MIDI", "CUSTOM", "WEBSOCKET"],
+      "description": "Primary communication protocol."
+    },
+    "defaultHost": {
+      "type": "string",
+      "description": "Default IP address or hostname placeholder (e.g. '192.168.1.100')."
+    },
+    "origin": {
+      "type": "string",
+      "enum": ["Built-In", "Community", "Custom"],
+      "description": "Module source designation."
+    },
+    "helpUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL to documentation, GitHub repo, or user manual."
+    },
+    "connectionConfig": {
+      "type": "object",
+      "description": "Persistent connection session configuration parameters.",
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "description": "Driver protocol identifier (e.g. 'CUSTOM_SCRIPT', 'OBS_WEBSOCKET', 'ATEM_UDP')."
+        },
+        "transport": {
+          "type": "string",
+          "enum": ["TCP", "TCP_STREAM", "UDP", "UDP_SESSION", "WEBSOCKET", "WS", "WSS", "OBS_WEBSOCKET", "CUSTOM", "HTTP", "HTTPS", "OSC", "MIDI"],
+          "description": "Low-level transport implementation."
+        },
+        "defaultPort": {
+          "type": "string"
+        },
+        "defaultHost": {
+          "type": "string"
+        },
+        "autoConnectOnLaunch": {
+          "type": "boolean",
+          "default": true
+        },
+        "heartbeatIntervalMs": {
+          "type": "number",
+          "description": "Interval in milliseconds between heartbeat triggers (optional)."
+        },
+        "framing": {
+          "type": "string",
+          "description": "Stream framing mode: 'raw', 'line', 'crlf', 'visca', 'slip', 'length_2be', 'length_4be', 'fixed_size_X'."
+        },
+        "tls": {
+          "type": "boolean",
+          "description": "Whether to enable TLS/SSL on the transport."
+        },
+        "allowInsecureTLS": {
+          "type": "boolean",
+          "description": "Allow self-signed or invalid SSL certificates."
+        },
+        "urlPath": {
+          "type": "string",
+          "description": "URL path for WebSocket or HTTP endpoint (e.g. '/ws')."
+        },
+        "discovery": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["bonjour", "ssdp", "mdns"]
+            },
+            "serviceType": {
+              "type": "string",
+              "description": "Bonjour service type string (e.g. '_http._tcp', '_obs._tcp')."
+            },
+            "autoFillHost": {
+              "type": "boolean"
+            }
+          }
+        },
+        "setupFields": {
+          "type": "array",
+          "description": "Wizard input fields for configuring connection credentials.",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "type"],
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "type": { "type": "string", "enum": ["Text", "Number", "Dropdown", "Toggle"] },
+              "defaultValue": { "type": "string" },
+              "placeholder": { "type": "string" },
+              "helpText": { "type": "string" },
+              "isRequired": { "type": "boolean" },
+              "isSecret": { "type": "boolean" },
+              "dropdownChoices": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "driverScript": {
+      "type": "string",
+      "description": "JavaScript driver code adhering to the Control-It Module Runtime Environment."
+    },
+    "variables": {
+      "type": "array",
+      "description": "Dynamic feedback variables exposed by this module.",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "descriptionText": { "type": "string" },
+          "sampleValue": { "type": "string" },
+          "variableType": { "type": "string", "enum": ["String", "Number", "Boolean", "JSON"] }
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "description": "List of actions supported by this module.",
+      "items": {
+        "type": "object",
+        "required": ["id", "title"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "subtitle": { "type": "string" },
+          "descriptionText": { "type": "string" },
+          "iconName": { "type": "string" },
+          "iconColorHex": { "type": "string" },
+          "connectionType": { "type": "string" },
+          "defaultPort": { "type": "string" },
+          "uri": { "type": "string" },
+          "httpMethod": { "type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"] },
+          "httpBody": { "type": "string" },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["key", "value"],
+              "properties": {
+                "key": { "type": "string" },
+                "value": { "type": "string" }
+              }
+            }
+          },
+          "oscAddress": { "type": "string" },
+          "oscArgs": { "type": "array" },
+          "tcpPayload": { "type": "string" },
+          "udpPayload": { "type": "string" },
+          "customScript": { "type": "string" },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "label", "type"],
+              "properties": {
+                "id": { "type": "string" },
+                "label": { "type": "string" },
+                "type": { "type": "string", "enum": ["Text", "Number", "Dropdown", "Toggle"] },
+                "defaultValue": { "type": "string" },
+                "dropdownChoices": { "type": "array", "items": { "type": "string" } },
+                "placeholder": { "type": "string" },
+                "descriptionText": { "type": "string" },
+                "minValue": { "type": "number" },
+                "maxValue": { "type": "number" },
+                "stepValue": { "type": "number" },
+                "isRequired": { "type": "boolean" },
+                "isSecret": { "type": "boolean" },
+                "dynamicSource": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

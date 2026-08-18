@@ -1,0 +1,158 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "behringer_x32",
+  "name": "Behringer X32 / M32",
+  "shortName": "X32",
+  "manufacturer": "Music Tribe (Behringer)",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Digital Audio Mixing Console",
+  "descriptionText": "Control channel mutes, faders, DCA groups, scene recalls, and main output on Behringer X32 and Midas M32 audio consoles via OSC/UDP.",
+  "iconName": "slider.vertical.3",
+  "iconColorHex": "#FFB300",
+  "defaultPort": "10023",
+  "defaultProtocol": "OSC",
+  "defaultHost": "192.168.1.150",
+  "helpUrl": "https://behringer.com",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "OSC",
+    "transport": "UDP_SESSION",
+    "defaultPort": "10023",
+    "defaultHost": "192.168.1.150",
+    "autoConnectOnLaunch": true,
+    "discovery": {
+      "type": "bonjour",
+      "serviceType": "_osc._udp",
+      "autoFillHost": true
+    },
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "Console IP Address",
+        "type": "Text",
+        "defaultValue": "192.168.1.150",
+        "placeholder": "192.168.1.150",
+        "helpText": "Enter the IP address of your X32/M32 console on the local network.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "OSC Port",
+        "type": "Number",
+        "defaultValue": "10023",
+        "placeholder": "10023",
+        "helpText": "Default X32 OSC control port is 10023.",
+        "isRequired": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "x32_ch_01_muted",
+      "name": "Channel 1 Mute Status",
+      "descriptionText": "Whether channel 1 is currently muted",
+      "sampleValue": "false",
+      "variableType": "Boolean"
+    }
+  ],
+  "actions": [
+    {
+      "id": "x32_mute_ch1",
+      "title": "X32: Mute Channel",
+      "subtitle": "Mute input channel",
+      "descriptionText": "Mutes designated audio input channel on the console.",
+      "iconName": "speaker.slash.fill",
+      "iconColorHex": "#D32F2F",
+      "connectionType": "OSC",
+      "defaultPort": "10023",
+      "inputs": [
+        {
+          "id": "channel_id",
+          "label": "Channel Number (01-32)",
+          "type": "Dropdown",
+          "defaultValue": "01",
+          "dropdownChoices": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16"]
+        }
+      ],
+      "oscPath": "/ch/{channel_id}/mix/on",
+      "oscValue": "0",
+      "dynamicTitleParsingRule": "MUTE CH {channel_id}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{x32_ch_{channel_id}_muted}} == true",
+          "colorName": "Red"
+        },
+        {
+          "id": "c2",
+          "condition": "{{x32_ch_{channel_id}_muted}} == false",
+          "colorName": "Green"
+        }
+      ]
+    },
+    {
+      "id": "x32_unmute_ch1",
+      "title": "X32: Unmute Channel",
+      "subtitle": "Unmute input channel",
+      "descriptionText": "Unmutes designated audio input channel on the console.",
+      "iconName": "speaker.wave.3.fill",
+      "iconColorHex": "#388E3C",
+      "connectionType": "OSC",
+      "defaultPort": "10023",
+      "inputs": [
+        {
+          "id": "channel_id",
+          "label": "Channel Number (01-32)",
+          "type": "Dropdown",
+          "defaultValue": "01",
+          "dropdownChoices": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16"]
+        }
+      ],
+      "oscPath": "/ch/{channel_id}/mix/on",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "LIVE CH {channel_id}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{x32_ch_{channel_id}_muted}} == false",
+          "colorName": "Green"
+        },
+        {
+          "id": "c2",
+          "condition": "{{x32_ch_{channel_id}_muted}} == true",
+          "colorName": "Red"
+        }
+      ]
+    },
+    {
+      "id": "x32_main_fader",
+      "title": "X32: Set Main LR Fader",
+      "subtitle": "Adjust master output volume",
+      "descriptionText": "Sets master stereo LR fader level (0.0 to 1.0).",
+      "iconName": "waveform",
+      "iconColorHex": "#1976D2",
+      "connectionType": "OSC",
+      "defaultPort": "10023",
+      "inputs": [
+        {
+          "id": "level",
+          "label": "Fader Level (0.0 - 1.0)",
+          "type": "Text",
+          "defaultValue": "0.75",
+          "placeholder": "0.75"
+        }
+      ],
+      "oscPath": "/main/st/mix/fader",
+      "oscValue": "{level}",
+      "dynamicTitleParsingRule": "MAIN LR: {level}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{x32_main_fader}} == {level}",
+          "colorName": "Blue"
+        }
+      ]
+    }
+  ]
+}

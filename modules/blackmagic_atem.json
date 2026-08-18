@@ -1,0 +1,272 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "blackmagic_atem",
+  "name": "Blackmagic ATEM",
+  "shortName": "ATEM",
+  "manufacturer": "Blackmagic Design",
+  "version": "2.1.0",
+  "author": "Control It Team",
+  "subtitle": "Broadcast Video Switcher Control",
+  "descriptionText": "Control Cut, Auto transitions, program bus, preview bus, downstream keyers, and macros on ATEM mini, Television Studio, and Constellation switchers via direct UDP persistent connection with real-time tally.",
+  "iconName": "rectangle.2.swap",
+  "iconColorHex": "#E65100",
+  "defaultPort": "9910",
+  "defaultProtocol": "CUSTOM",
+  "defaultHost": "192.168.1.100",
+  "helpUrl": "https://www.blackmagicdesign.com/products/atemmini",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "CUSTOM",
+    "transport": "UDP_SESSION",
+    "defaultPort": "9910",
+    "defaultHost": "192.168.1.100",
+    "autoConnectOnLaunch": true,
+    "heartbeatIntervalMs": 200,
+    "discovery": {
+      "type": "bonjour",
+      "serviceType": "_atem._udp",
+      "autoFillHost": true
+    },
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "ATEM Switcher IP",
+        "type": "Text",
+        "defaultValue": "192.168.1.100",
+        "placeholder": "e.g. 192.168.1.100",
+        "helpText": "Enter the IP address of your ATEM Switcher on the local network.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "Port",
+        "type": "Number",
+        "defaultValue": "9910",
+        "placeholder": "9910",
+        "helpText": "Default ATEM UDP control port is 9910.",
+        "isRequired": true
+      },
+      {
+        "id": "me_index",
+        "label": "Mix Effects Bus (M/E)",
+        "type": "Dropdown",
+        "defaultValue": "1",
+        "dropdownChoices": ["1", "2", "3", "4"],
+        "helpText": "Select the target M/E bus (M/E 1 for ATEM Mini and single-bus switchers)."
+      }
+    ]
+  },
+  "driverScript": "module.exports = {\n  sessionId: 0,\n  remotePacketId: 0,\n  localPacketId: 0,\n  connected: false,\n  lastReceivedTime: 0,\n  config: {},\n  handshakeInterval: null,\n\n  onConnect: function(transport, config) {\n    this.sessionId = 0;\n    this.remotePacketId = 0;\n    this.localPacketId = 0;\n    this.connected = false;\n    this.lastReceivedTime = Date.now();\n    this.config = config || {};\n    engine.setStatus('connecting', 'Connecting to ATEM...');\n\n    var self = this;\n    this.sendSyn(transport);\n\n    if (this.handshakeInterval) clearInterval(this.handshakeInterval);\n    this.handshakeInterval = setInterval(function() {\n      if (!self.connected) {\n        self.sendSyn(transport);\n      } else {\n        clearInterval(self.handshakeInterval);\n        self.handshakeInterval = null;\n      }\n    }, 1000);\n  },\n\n  sendSyn: function(transport) {\n    var synPacket = [\n      0x10, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n      0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,\n      0x00, 0x00, 0x00, 0x00\n    ];\n    transport.sendBytes(synPacket);\n  },\n\n  onMessage: function(transport, messageText, messageBytes) {\n    if (!messageBytes || messageBytes.length < 12) return;\n    this.lastReceivedTime = Date.now();\n\n    var flagByte = messageBytes[0];\n    var len = ((flagByte & 0x07) << 8) | messageBytes[1];\n    var incSessionId = (messageBytes[2] << 8) | messageBytes[3];\n    var incRemoteAckId = (messageBytes[4] << 8) | messageBytes[5];\n    var incSwitcherPacketId = (messageBytes[10] << 8) | messageBytes[11];\n\n    // ConnectAck from ATEM (bit 4: 0x10)\n    if ((flagByte & 0x10) !== 0) {\n      this.sessionId = incSessionId;\n      this.remotePacketId = 0;\n      this.localPacketId = 0;\n      this.connected = true;\n      this.lastReceivedTime = Date.now();\n      if (this.handshakeInterval) {\n        clearInterval(this.handshakeInterval);\n        this.handshakeInterval = null;\n      }\n      engine.setStatus('connected', 'Connected to ATEM');\n      this.sendAck(transport, 0);\n      return;\n    }\n\n    if (this.sessionId !== 0 && incSessionId !== this.sessionId) return;\n\n    if (incSwitcherPacketId > this.remotePacketId || (this.remotePacketId > 60000 && incSwitcherPacketId < 1000)) {\n      this.remotePacketId = incSwitcherPacketId;\n    }\n\n    // Process subcommands\n    if (len > 12 && messageBytes.length >= len) {\n      var offset = 12;\n      while (offset + 8 <= len) {\n        var cmdLen = (messageBytes[offset] << 8) | messageBytes[offset + 1];\n        if (cmdLen < 8 || offset + cmdLen > len) break;\n        var cmdName = String.fromCharCode(\n          messageBytes[offset + 4],\n          messageBytes[offset + 5],\n          messageBytes[offset + 6],\n          messageBytes[offset + 7]\n        );\n        var payload = messageBytes.slice(offset + 8, offset + cmdLen);\n        this.handleCommand(cmdName, payload);\n        offset += cmdLen;\n      }\n    }\n\n    // Acknowledge packets from switcher (ACK request bit 0x08 or received packet with ID)\n    if ((flagByte & 0x08) !== 0 || incSwitcherPacketId > 0) {\n      this.sendAck(transport, this.remotePacketId);\n    }\n  },\n\n  sendAck: function(transport, ackId) {\n    var packet = [\n      0x80, 0x0C,\n      (this.sessionId >> 8) & 0xFF, this.sessionId & 0xFF,\n      (ackId >> 8) & 0xFF, ackId & 0xFF,\n      0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n    ];\n    transport.sendBytes(packet);\n  },\n\n  onHeartbeat: function(transport) {\n    if (this.connected) {\n      var now = Date.now();\n      // Watchdog: If no packet received for > 3.5s, reconnect\n      if (now - this.lastReceivedTime > 3500) {\n        this.connected = false;\n        engine.setStatus('connecting', 'Re-syncing with ATEM...');\n        this.sendSyn(transport);\n        var self = this;\n        if (this.handshakeInterval) clearInterval(this.handshakeInterval);\n        this.handshakeInterval = setInterval(function() {\n          if (!self.connected) {\n            self.sendSyn(transport);\n          } else {\n            clearInterval(self.handshakeInterval);\n            self.handshakeInterval = null;\n          }\n        }, 1000);\n      } else if (this.sessionId !== 0) {\n        this.sendAck(transport, this.remotePacketId);\n      }\n    }\n  },\n\n  handleCommand: function(name, payload) {\n    // 1. Real hardware product name string (e.g. 'ATEM 4 M/E Constellation HD')\n    if (name === '_pin' && payload.length > 0) {\n      var pinStr = '';\n      for (var i = 0; i < payload.length; i++) {\n        if (payload[i] === 0) break;\n        pinStr += String.fromCharCode(payload[i]);\n      }\n      pinStr = pinStr.trim();\n      if (pinStr.length > 0) {\n        engine.setVariable('atem_model', pinStr);\n      }\n    }\n    // 2. Topology Information\n    else if (name === '_top' && payload.length >= 2) {\n      var meCount = payload[0];\n      var sourceCount = payload[1];\n      engine.setVariable('atem_me_count', String(meCount));\n      engine.setVariable('atem_source_count', String(sourceCount));\n    }\n    // 3. Protocol Version\n    else if (name === '_ver' && payload.length >= 4) {\n      var vMajor = (payload[0] << 8) | payload[1];\n      var vMinor = (payload[2] << 8) | payload[3];\n      engine.setVariable('atem_protocol_version', vMajor + '.' + vMinor);\n    }\n    // 4. Program Input\n    else if ((name === 'PrIn' || name === 'CPgI') && payload.length >= 4) {\n      var me = payload[0];\n      var input = (payload[2] << 8) | payload[3];\n      engine.setVariable('atem_me_' + (me + 1) + '_program_input', String(input));\n      if (me === 0) {\n        engine.setVariable('atem_program_input', String(input));\n      }\n    }\n    // 5. Preview Input\n    else if ((name === 'PrvI' || name === 'CPvI') && payload.length >= 4) {\n      var me = payload[0];\n      var input = (payload[2] << 8) | payload[3];\n      engine.setVariable('atem_me_' + (me + 1) + '_preview_input', String(input));\n      if (me === 0) {\n        engine.setVariable('atem_preview_input', String(input));\n      }\n    }\n    // 6. Transition State\n    else if ((name === 'TrSS' || name === 'TrPr') && payload.length >= 2) {\n      var me = payload[0];\n      var inTrans = payload[1] !== 0 ? 'true' : 'false';\n      engine.setVariable('atem_me_' + (me + 1) + '_in_transition', inTrans);\n      if (me === 0) {\n        engine.setVariable('atem_in_transition', inTrans);\n      }\n    }\n    // 7. Fade to Black State\n    else if ((name === 'FTSA' || name === 'FtbS') && payload.length >= 2) {\n      var me = payload[0];\n      var ftb = payload[1] !== 0 ? 'true' : 'false';\n      engine.setVariable('atem_me_' + (me + 1) + '_ftb_active', ftb);\n      if (me === 0) {\n        engine.setVariable('atem_ftb_active', ftb);\n      }\n    }\n    // 8. Input Properties & Labels\n    else if (name === 'InPr' && payload.length >= 26) {\n      var inId = (payload[0] << 8) | payload[1];\n      var longName = '';\n      for (var j = 2; j < 22; j++) {\n        if (payload[j] === 0) break;\n        longName += String.fromCharCode(payload[j]);\n      }\n      longName = longName.trim();\n      if (longName.length > 0) {\n        engine.setVariable('atem_input_' + inId + '_name', longName);\n      }\n    }\n  },\n\n  onAction: function(transport, actionId, params) {\n    params = params || {};\n    var rawAct = String(actionId || '').toLowerCase().trim();\n    var act = rawAct.replace(/^\\/+/, '');\n    if (act.indexOf('/') !== -1) {\n      act = act.split('/').pop();\n    }\n    act = act.replace(/^atem_/, '').replace(/^atem\\./, '').replace(/^atem-/, '');\n\n    var isAllMe = String(params.me_index || params.me || '').toLowerCase() === 'all';\n    var meCount = parseInt(engine.getVariable('atem_me_count') || '1', 10);\n    if (isNaN(meCount) || meCount < 1) meCount = 1;\n\n    var defaultMe = (this.config && this.config.me_index) ? this.config.me_index : '1';\n    var me = parseInt(params.me_index || params.me || defaultMe, 10) - 1;\n    if (isNaN(me) || me < 0) me = 0;\n\n    function getIntParam(keys, defaultVal) {\n      for (var i = 0; i < keys.length; i++) {\n        var k = keys[i];\n        if (params[k] !== undefined && params[k] !== null) {\n          var s = String(params[k]).trim();\n          if (s !== '') {\n            var digits = s.replace(/[^0-9]/g, '');\n            if (digits.length > 0) {\n              var parsed = parseInt(digits, 10);\n              if (!isNaN(parsed)) return parsed;\n            }\n          }\n        }\n      }\n      return defaultVal;\n    }\n\n    var self = this;\n    function sendToMe(cmd, payloadBuilder) {\n      if (isAllMe) {\n        for (var m = 0; m < meCount; m++) {\n          self.sendCommand(transport, cmd, payloadBuilder(m));\n        }\n      } else {\n        self.sendCommand(transport, cmd, payloadBuilder(me));\n      }\n    }\n\n    if (act === 'cut' || act === 'dcut') {\n      sendToMe('DCut', function(m) { return [m, 0x00, 0x00, 0x00]; });\n      return 'Cut transition executed (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'auto' || act === 'auto_fade' || act === 'daut') {\n      sendToMe('DAut', function(m) { return [m, 0x00, 0x00, 0x00]; });\n      return 'Auto transition executed (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'set_program' || act === 'program_input' || act === 'cpgi' || act === 'program' || act === 'pgm') {\n      var input = getIntParam(['input_id', 'input', 'value', 'param', 'source'], 1);\n      sendToMe('CPgI', function(m) { return [m, 0x00, (input >> 8) & 0xFF, input & 0xFF]; });\n      engine.setVariable('atem_program_input', String(input));\n      engine.setVariable('atem_me_' + (me + 1) + '_program_input', String(input));\n      return 'Program input set to Input ' + input + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'set_preview' || act === 'preview_input' || act === 'cpvi' || act === 'preview' || act === 'pvw') {\n      var input = getIntParam(['input_id', 'input', 'value', 'param', 'source'], 2);\n      sendToMe('CPvI', function(m) { return [m, 0x00, (input >> 8) & 0xFF, input & 0xFF]; });\n      engine.setVariable('atem_preview_input', String(input));\n      engine.setVariable('atem_me_' + (me + 1) + '_preview_input', String(input));\n      return 'Preview input set to Input ' + input + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'ftb' || act === 'fade_to_black' || act === 'ftsa' || act === 'ftba') {\n      sendToMe('FtbA', function(m) { return [m, 0x02, 0x58, 0x99]; });\n      sendToMe('FTSA', function(m) { return [m, 0x00, 0x00, 0x00]; });\n      return 'Fade to Black toggled (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'run_macro' || act === 'macro' || act === 'mrun') {\n      var macroIdx = Math.max(0, getIntParam(['macro_index', 'macro_id', 'macro', 'value', 'param'], 1) - 1);\n      this.sendCommand(transport, 'MRUN', [(macroIdx >> 8) & 0xFF, macroIdx & 0xFF, 0x00, 0x00]);\n      return 'Macro ' + (macroIdx + 1) + ' triggered';\n    }\n\n    return 'Executed action ' + actionId;\n  },\n\n  sendCommand: function(transport, name, payload) {\n    this.localPacketId = (this.localPacketId + 1) & 0x7FFF;\n    var packetId = this.localPacketId;\n    var cmdLen = 8 + payload.length;\n    var totalLen = 12 + cmdLen;\n    var flags = 0x08;\n    var packet = [\n      flags | ((totalLen >> 8) & 0x07), totalLen & 0xFF,\n      (this.sessionId >> 8) & 0xFF, this.sessionId & 0xFF,\n      (this.remotePacketId >> 8) & 0xFF, this.remotePacketId & 0xFF,\n      0x00, 0x00,\n      0x00, 0x00,\n      (packetId >> 8) & 0xFF, packetId & 0xFF,\n      (cmdLen >> 8) & 0xFF, cmdLen & 0xFF, 0x00, 0x00,\n      name.charCodeAt(0) & 0xFF, name.charCodeAt(1) & 0xFF, name.charCodeAt(2) & 0xFF, name.charCodeAt(3) & 0xFF\n    ];\n    for (var i = 0; i < payload.length; i++) {\n      packet.push(payload[i] & 0xFF);\n    }\n    transport.sendBytes(packet);\n  }\n};",
+  "variables": [
+    {
+      "id": "atem_program_input",
+      "name": "Program Input",
+      "descriptionText": "Current active on-air camera",
+      "sampleValue": "1",
+      "variableType": "Number"
+    },
+    {
+      "id": "atem_preview_input",
+      "name": "Preview Input",
+      "descriptionText": "Current cued preview camera",
+      "sampleValue": "2",
+      "variableType": "Number"
+    },
+    {
+      "id": "atem_ftb_active",
+      "name": "Fade to Black Active",
+      "descriptionText": "Whether FTB is enabled",
+      "sampleValue": "false",
+      "variableType": "Boolean"
+    },
+    {
+      "id": "atem_in_transition",
+      "name": "In Transition",
+      "descriptionText": "Whether an auto transition is in progress",
+      "sampleValue": "false",
+      "variableType": "Boolean"
+    },
+    {
+      "id": "atem_model",
+      "name": "Switcher Model",
+      "descriptionText": "Connected switcher hardware model name",
+      "sampleValue": "ATEM Mini Pro",
+      "variableType": "String"
+    }
+  ],
+  "actions": [
+    {
+      "id": "atem_cut",
+      "title": "ATEM: Cut Transition",
+      "subtitle": "Instant switch program to preview",
+      "descriptionText": "Performs an instant hard cut transition between program and preview buses on M/E 1.",
+      "iconName": "scissors",
+      "iconColorHex": "#FF6D00",
+      "connectionType": "CUSTOM",
+      "defaultPort": "9910",
+      "oscPath": "cut",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "CAM {{atem_program_input}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{atem_in_transition}} == true",
+          "colorName": "Yellow"
+        },
+        {
+          "id": "c2",
+          "condition": "{{atem_ftb_active}} == true",
+          "colorName": "Orange"
+        }
+      ]
+    },
+    {
+      "id": "atem_auto_fade",
+      "title": "ATEM: Auto Transition",
+      "subtitle": "Smooth dissolve transition",
+      "descriptionText": "Triggers the current Auto transition (Mix, Dip, Wipe, or DVE) on M/E 1.",
+      "iconName": "sparkles",
+      "iconColorHex": "#FF9100",
+      "connectionType": "CUSTOM",
+      "defaultPort": "9910",
+      "oscPath": "auto",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "CAM {{atem_program_input}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{atem_in_transition}} == true",
+          "colorName": "Red"
+        }
+      ]
+    },
+    {
+      "id": "atem_program_input",
+      "title": "ATEM: Set Program Input",
+      "subtitle": "Set live on-air camera/source",
+      "descriptionText": "Directly assigns an input (Cam 1-8, Color Bars, Media Player) to the Program bus.",
+      "iconName": "video.badge.checkmark",
+      "iconColorHex": "#D50000",
+      "connectionType": "CUSTOM",
+      "defaultPort": "9910",
+      "inputs": [
+        {
+          "id": "input_id",
+          "label": "Program Source / Input",
+          "type": "Dropdown",
+          "defaultValue": "1",
+          "dropdownChoices": ["1", "2", "3", "4", "5", "6", "7", "8", "1000", "2001"],
+          "dynamicSource": "variables:atem_input_*_name",
+          "valueTemplate": "{id}",
+          "labelTemplate": "{name} (Input {id})"
+        }
+      ],
+      "oscPath": "set_program",
+      "oscValue": "{input_id}",
+      "dynamicTitleParsingRule": "CAM {{atem_program_input}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{atem_program_input}} == {input_id}",
+          "colorName": "Red"
+        },
+        {
+          "id": "c2",
+          "condition": "{{atem_preview_input}} == {input_id}",
+          "colorName": "Green"
+        }
+      ]
+    },
+    {
+      "id": "atem_preview_input",
+      "title": "ATEM: Set Preview Input",
+      "subtitle": "Cue next camera/source",
+      "descriptionText": "Assigns an input to the Preview bus for monitoring before going live.",
+      "iconName": "tv.and.mediabox",
+      "iconColorHex": "#2962FF",
+      "connectionType": "CUSTOM",
+      "defaultPort": "9910",
+      "inputs": [
+        {
+          "id": "input_id",
+          "label": "Preview Source / Input",
+          "type": "Dropdown",
+          "defaultValue": "2",
+          "dropdownChoices": ["1", "2", "3", "4", "5", "6", "7", "8"],
+          "dynamicSource": "variables:atem_input_*_name",
+          "valueTemplate": "{id}",
+          "labelTemplate": "{name} (Input {id})"
+        }
+      ],
+      "oscPath": "set_preview",
+      "oscValue": "{input_id}",
+      "dynamicTitleParsingRule": "PRV {{atem_preview_input}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{atem_preview_input}} == {input_id}",
+          "colorName": "Green"
+        },
+        {
+          "id": "c2",
+          "condition": "{{atem_program_input}} == {input_id}",
+          "colorName": "Red"
+        }
+      ]
+    },
+    {
+      "id": "atem_fade_to_black",
+      "title": "ATEM: Fade to Black (FTB)",
+      "subtitle": "Fade all outputs to black",
+      "descriptionText": "Fades program video and master audio to black.",
+      "iconName": "moon.fill",
+      "iconColorHex": "#212121",
+      "connectionType": "CUSTOM",
+      "defaultPort": "9910",
+      "oscPath": "ftb",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "FTB",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{atem_ftb_active}} == true",
+          "colorName": "Red"
+        },
+        {
+          "id": "c2",
+          "condition": "{{atem_ftb_active}} == false",
+          "colorName": "Default"
+        }
+      ]
+    },
+    {
+      "id": "atem_run_macro",
+      "title": "ATEM: Run Macro",
+      "subtitle": "Execute saved hardware macro",
+      "descriptionText": "Triggers a pre-recorded macro sequence stored on the ATEM switcher hardware.",
+      "iconName": "gearshape.arrow.triangle.2.circlepath",
+      "iconColorHex": "#00B0FF",
+      "connectionType": "CUSTOM",
+      "defaultPort": "9910",
+      "inputs": [
+        {
+          "id": "macro_index",
+          "label": "Macro Index",
+          "type": "Number",
+          "defaultValue": "1",
+          "placeholder": "1-100"
+        }
+      ],
+      "oscPath": "run_macro",
+      "oscValue": "{macro_index}",
+      "dynamicTitleParsingRule": "MACRO {macro_index}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{atem_macro_{macro_index}_running}} == true",
+          "colorName": "Blue"
+        }
+      ]
+    }
+  ]
+}

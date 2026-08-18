@@ -1,0 +1,128 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "zoom_osc",
+  "name": "ZoomOSC",
+  "shortName": "ZoomOSC",
+  "manufacturer": "Zoom Video Communications",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Video Conferencing & Meeting Automation",
+  "descriptionText": "Control Zoom meetings, pin/spotlight participants, manage gallery views, mute participants, and send in-meeting commands via ZoomOSC.",
+  "iconName": "person.3.fill",
+  "iconColorHex": "#2D8CFF",
+  "defaultPort": "9090",
+  "defaultProtocol": "OSC",
+  "defaultHost": "127.0.0.1",
+  "helpUrl": "https://www.liminalet.com/zoomosc",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "OSC",
+    "transport": "UDP_SESSION",
+    "defaultPort": "9090",
+    "defaultHost": "127.0.0.1",
+    "autoConnectOnLaunch": true,
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "ZoomOSC Host / IP",
+        "type": "Text",
+        "defaultValue": "127.0.0.1",
+        "placeholder": "127.0.0.1",
+        "helpText": "Enter IP address of computer running ZoomOSC.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "OSC Receive Port",
+        "type": "Number",
+        "defaultValue": "9090",
+        "placeholder": "9090",
+        "helpText": "Default ZoomOSC incoming port is 9090.",
+        "isRequired": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "zoom_all_muted",
+      "name": "All Participants Muted",
+      "descriptionText": "Whether meeting audio is globally muted",
+      "sampleValue": "true",
+      "variableType": "Boolean"
+    },
+    {
+      "id": "zoom_hand_raised",
+      "name": "Hand Raised",
+      "descriptionText": "Host hand raise status",
+      "sampleValue": "false",
+      "variableType": "Boolean"
+    }
+  ],
+  "actions": [
+    {
+      "id": "zoom_mute_all",
+      "title": "ZoomOSC: Mute All Participants",
+      "subtitle": "Mute everyone in meeting",
+      "descriptionText": "Sends command to mute all meeting attendees.",
+      "iconName": "mic.slash.fill",
+      "iconColorHex": "#E53935",
+      "connectionType": "OSC",
+      "defaultPort": "9090",
+      "oscPath": "/zoom/all/mute",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "MUTE ALL",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{zoom_all_muted}} == true",
+          "colorName": "Red"
+        }
+      ]
+    },
+    {
+      "id": "zoom_unmute_all",
+      "title": "ZoomOSC: Ask All to Unmute",
+      "subtitle": "Prompt participants to unmute",
+      "descriptionText": "Sends an unmute request prompt to all participants.",
+      "iconName": "mic.fill",
+      "iconColorHex": "#43A047",
+      "connectionType": "OSC",
+      "defaultPort": "9090",
+      "oscPath": "/zoom/all/unmute",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "UNMUTE ALL",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{zoom_all_muted}} == false",
+          "colorName": "Green"
+        }
+      ]
+    },
+    {
+      "id": "zoom_raise_hand",
+      "title": "ZoomOSC: Toggle Raise Hand",
+      "subtitle": "Raise or lower host hand",
+      "descriptionText": "Toggles host raise hand status in meeting.",
+      "iconName": "hand.raised.fill",
+      "iconColorHex": "#FFB300",
+      "connectionType": "OSC",
+      "defaultPort": "9090",
+      "oscPath": "/zoom/me/toggleHand",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "HAND: {{zoom_hand_raised}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{zoom_hand_raised}} == true",
+          "colorName": "Yellow"
+        },
+        {
+          "id": "c2",
+          "condition": "{{zoom_hand_raised}} == false",
+          "colorName": "Default"
+        }
+      ]
+    }
+  ]
+}

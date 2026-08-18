@@ -1,0 +1,110 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "generic_rest_api",
+  "name": "REST API & Webhooks",
+  "shortName": "REST / Webhook",
+  "manufacturer": "Generic / Universal",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Universal HTTP / JSON Endpoint Gateway",
+  "descriptionText": "Universal REST API client for sending GET, POST, PUT, DELETE requests and cloud webhooks (Zapier, Make, IFTTT, n8n, Node-RED, Custom Servers).",
+  "iconName": "network",
+  "iconColorHex": "#00897B",
+  "defaultPort": "443",
+  "defaultProtocol": "HTTP",
+  "defaultHost": "api.example.com",
+  "helpUrl": "https://github.com/micah1crandell/control-it-modules",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "HTTP",
+    "transport": "TCP",
+    "defaultPort": "443",
+    "defaultHost": "api.example.com",
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "API Host / Domain",
+        "type": "Text",
+        "defaultValue": "api.example.com",
+        "placeholder": "api.example.com",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "Port",
+        "type": "Number",
+        "defaultValue": "443",
+        "placeholder": "443",
+        "isRequired": true
+      },
+      {
+        "id": "auth_header",
+        "label": "Authorization Token / API Key",
+        "type": "Text",
+        "defaultValue": "",
+        "placeholder": "Bearer ...",
+        "isRequired": false,
+        "isSecret": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "last_status_code",
+      "name": "Last HTTP Status",
+      "descriptionText": "Status code from most recent HTTP request",
+      "sampleValue": "200",
+      "variableType": "Number"
+    }
+  ],
+  "actions": [
+    {
+      "id": "generic_post_json",
+      "title": "Universal: POST JSON Webhook",
+      "subtitle": "Send payload to HTTP endpoint",
+      "descriptionText": "Sends an HTTP POST request with customizable JSON body and Content-Type header.",
+      "iconName": "arrow.up.doc.fill",
+      "iconColorHex": "#00897B",
+      "connectionType": "HTTP",
+      "defaultPort": "443",
+      "inputs": [
+        {
+          "id": "endpoint_path",
+          "label": "Endpoint URI",
+          "type": "Text",
+          "defaultValue": "/api/v1/webhook",
+          "placeholder": "/api/..."
+        },
+        {
+          "id": "action_event",
+          "label": "Event Name",
+          "type": "Text",
+          "defaultValue": "button_press",
+          "placeholder": "e.g. button_press, scene_change"
+        }
+      ],
+      "uri": "{endpoint_path}",
+      "httpMethod": "POST",
+      "requestBody": "{\n  \"event\": \"{action_event}\",\n  \"timestamp\": 0\n}",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "dynamicTitleParsingRule": "{action_event}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{last_status_code}} == 200",
+          "colorName": "Green"
+        },
+        {
+          "id": "c2",
+          "condition": "{{last_status_code}} >= 400",
+          "colorName": "Red"
+        }
+      ]
+    }
+  ]
+}

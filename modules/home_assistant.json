@@ -1,0 +1,143 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "home_assistant",
+  "name": "Home Assistant",
+  "shortName": "Home Assistant",
+  "manufacturer": "Home Assistant",
+  "version": "2.0.0",
+  "author": "Control It Team",
+  "subtitle": "Smart Home, IoT & Studio Relays",
+  "descriptionText": "Trigger smart relays, power sockets, studio on-air lights, scene automations, and webhooks via Home Assistant REST / WebSocket API.",
+  "iconName": "house.fill",
+  "iconColorHex": "#03A9F4",
+  "defaultPort": "8123",
+  "defaultProtocol": "HTTP",
+  "defaultHost": "192.168.1.200",
+  "helpUrl": "https://developers.home-assistant.io/docs/api/rest",
+  "origin": "Community",
+  "connectionConfig": {
+    "protocol": "HTTP",
+    "transport": "WEBSOCKET",
+    "defaultPort": "8123",
+    "defaultHost": "192.168.1.200",
+    "autoConnectOnLaunch": true,
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "Home Assistant IP / Domain",
+        "type": "Text",
+        "defaultValue": "192.168.1.200",
+        "placeholder": "192.168.1.200",
+        "helpText": "Enter IP address or hostname of your Home Assistant server.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "Port",
+        "type": "Number",
+        "defaultValue": "8123",
+        "placeholder": "8123",
+        "helpText": "Default Home Assistant port is 8123.",
+        "isRequired": true
+      },
+      {
+        "id": "token",
+        "label": "Long-Lived Access Token",
+        "type": "Text",
+        "defaultValue": "",
+        "placeholder": "Bearer eyJhbGciOi...",
+        "helpText": "Generated under Profile > Long-Lived Access Tokens in Home Assistant.",
+        "isRequired": false,
+        "isSecret": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "ha_state_switch_studio",
+      "name": "Studio Switch State",
+      "descriptionText": "State of target entity (on/off)",
+      "sampleValue": "on",
+      "variableType": "String"
+    }
+  ],
+  "actions": [
+    {
+      "id": "ha_toggle_light",
+      "title": "Home Assistant: Toggle Light / Relay",
+      "subtitle": "Switch smart plug or relay",
+      "descriptionText": "Toggles the power state of any Home Assistant entity (light, switch, relay).",
+      "iconName": "power",
+      "iconColorHex": "#0288D1",
+      "connectionType": "HTTP",
+      "defaultPort": "8123",
+      "inputs": [
+        {
+          "id": "entity_id",
+          "label": "Entity ID",
+          "type": "Text",
+          "defaultValue": "switch.studio_on_air_light",
+          "placeholder": "e.g. light.desk, switch.studio_relay"
+        }
+      ],
+      "uri": "/api/services/homeassistant/toggle",
+      "httpMethod": "POST",
+      "requestBody": "{\"entity_id\": \"{entity_id}\"}",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "dynamicTitleParsingRule": "{entity_id}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{ha_state_{entity_id}}} == on",
+          "colorName": "Yellow"
+        },
+        {
+          "id": "c2",
+          "condition": "{{ha_state_{entity_id}}} == off",
+          "colorName": "Default"
+        }
+      ]
+    },
+    {
+      "id": "ha_trigger_automation",
+      "title": "Home Assistant: Trigger Automation",
+      "subtitle": "Run scene or automation routine",
+      "descriptionText": "Executes a configured automation routine in Home Assistant.",
+      "iconName": "sparkles.rectangle.stack",
+      "iconColorHex": "#039BE5",
+      "connectionType": "HTTP",
+      "defaultPort": "8123",
+      "inputs": [
+        {
+          "id": "automation_id",
+          "label": "Automation Entity ID",
+          "type": "Text",
+          "defaultValue": "automation.studio_stream_mode_on",
+          "placeholder": "e.g. automation.studio_stream_mode"
+        }
+      ],
+      "uri": "/api/services/automation/trigger",
+      "httpMethod": "POST",
+      "requestBody": "{\"entity_id\": \"{automation_id}\"}",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "dynamicTitleParsingRule": "{automation_id}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{ha_automation_{automation_id}_running}} == true",
+          "colorName": "Blue"
+        }
+      ]
+    }
+  ]
+}
