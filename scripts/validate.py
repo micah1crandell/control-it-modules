@@ -14,6 +14,10 @@ def validate_all(root_dir="."):
     manifest_path = os.path.join(root_dir, "manifest.json")
     modules_dir = os.path.join(root_dir, "modules")
     
+    # Check if modules are in the same folder or in modules/ subfolder
+    if not os.path.exists(modules_dir):
+        modules_dir = root_dir
+
     if not os.path.exists(manifest_path):
         print("❌ manifest.json not found at", manifest_path)
         return False
@@ -25,6 +29,8 @@ def validate_all(root_dir="."):
     all_valid = True
     
     json_files = glob.glob(os.path.join(modules_dir, "*.json"))
+    json_files = [f for f in json_files if not f.endswith("manifest.json") and not f.endswith("module.schema.json") and not f.endswith("template_multi_action_module.json")]
+    
     print(f"🔍 Validating {len(json_files)} modules in '{modules_dir}'...\n")
 
     for jf in sorted(json_files):

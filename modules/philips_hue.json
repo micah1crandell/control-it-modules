@@ -87,7 +87,10 @@
       "httpMethod": "PUT",
       "requestBody": "{\"on\": true, \"hue\": 0, \"sat\": 254, \"bri\": 254}",
       "headers": [
-        { "key": "Content-Type", "value": "application/json" }
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
       ],
       "dynamicTitleParsingRule": "TALLY ON AIR",
       "dynamicColorRules": [
@@ -120,7 +123,10 @@
       "httpMethod": "PUT",
       "requestBody": "{\"on\": true, \"hue\": 25500, \"sat\": 254, \"bri\": 254}",
       "headers": [
-        { "key": "Content-Type", "value": "application/json" }
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
       ],
       "dynamicTitleParsingRule": "TALLY STANDBY",
       "dynamicColorRules": [
@@ -131,5 +137,6 @@
         }
       ]
     }
-  ]
+  ],
+  "driverScript": "module.exports = {\n    onAction: function(transport, actionId, params) {\n        var userToken = engine.secret(\"api_key\") || params.api_key || \"\";\n        var lightId = params.light_id || \"1\";\n        \n        if (actionId === \"hue_toggle_light\" || actionId === \"toggle_light\") {\n            var uri = \"/api/\" + userToken + \"/lights/\" + lightId + \"/state\";\n            var body = { on: params.state === \"on\" || params.state === \"true\" };\n            return engine.http.post(uri, body).then(function(res) {\n                engine.setVariable(\"hue_light_\" + lightId + \"_on\", body.on ? \"true\" : \"false\");\n                return \"Light \" + lightId + (body.on ? \" Turned On\" : \" Turned Off\");\n            });\n        }\n        if (actionId === \"hue_set_brightness\" || actionId === \"brightness\") {\n            var bri = parseInt(params.brightness || \"254\", 10);\n            var uri = \"/api/\" + userToken + \"/lights/\" + lightId + \"/state\";\n            return engine.http.post(uri, { bri: bri }).then(function(res) {\n                engine.setVariable(\"hue_light_\" + lightId + \"_bri\", String(bri));\n                return \"Set Light \" + lightId + \" Brightness to \" + bri;\n            });\n        }\n        return \"Hue Action Sent\";\n    }\n};"
 }

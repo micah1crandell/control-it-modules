@@ -111,6 +111,26 @@
           "type": "number",
           "description": "Interval in milliseconds between heartbeat triggers (optional)."
         },
+        "heartbeatIntervalSeconds": {
+          "type": "number",
+          "description": "Interval in seconds between heartbeat triggers (optional)."
+        },
+        "handshakeTimeoutSeconds": {
+          "type": "number",
+          "description": "Timeout in seconds to wait for initial handshake and device state synchronization before aborting (default: 15.0s, high-state devices like ATEM: 20.0s)."
+        },
+        "retryIntervalSeconds": {
+          "type": "number",
+          "description": "Base delay in seconds between auto-reconnect attempts (default: 3.0s)."
+        },
+        "maxRetryAttempts": {
+          "type": "integer",
+          "description": "Maximum number of automatic reconnection attempts before marking session as failed (default: 10)."
+        },
+        "inactivityTimeoutSeconds": {
+          "type": "number",
+          "description": "Watchdog timeout in seconds of datagram silence before declaring session stale/reconnecting (default: handshakeTimeoutSeconds)."
+        },
         "framing": {
           "type": "string",
           "description": "Stream framing mode: 'raw', 'line', 'crlf', 'visca', 'slip', 'length_2be', 'length_4be', 'fixed_size_X'."

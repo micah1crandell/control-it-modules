@@ -11,12 +11,12 @@
   "iconName": "house.fill",
   "iconColorHex": "#03A9F4",
   "defaultPort": "8123",
-  "defaultProtocol": "HTTP",
+  "defaultProtocol": "WEBSOCKET",
   "defaultHost": "192.168.1.200",
   "helpUrl": "https://developers.home-assistant.io/docs/api/rest",
   "origin": "Community",
   "connectionConfig": {
-    "protocol": "HTTP",
+    "protocol": "WEBSOCKET",
     "transport": "WEBSOCKET",
     "defaultPort": "8123",
     "defaultHost": "192.168.1.200",
@@ -139,5 +139,6 @@
         }
       ]
     }
-  ]
+  ],
+  "driverScript": "module.exports = {\n    msgId: 1,\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to Home Assistant WebSocket...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"authenticating\", \"Authenticating with Access Token...\");\n    },\n    onAction: function(transport, actionId, params) {\n        var domain = params.domain || \"light\";\n        var service = params.service || \"toggle\";\n        var entityId = params.entity_id || \"\";\n        \n        var payload = {\n            id: ++this.msgId,\n            type: \"call_service\",\n            domain: domain,\n            service: service,\n            service_data: {}\n        };\n        if (entityId) {\n            payload.service_data.entity_id = entityId;\n        }\n        transport.sendJSON(payload);\n        return \"Called \" + domain + \".\" + service + (entityId ? \" on \" + entityId : \"\");\n    },\n    onMessage: function(transport, text, bytes) {\n        var msg;\n        try { msg = JSON.parse(text); } catch(e) { return; }\n        \n        if (msg.type === \"auth_required\") {\n            var token = engine.secret(\"access_token\") || engine.secret(\"token\") || \"\";\n            transport.sendJSON({\n                type: \"auth\",\n                access_token: token\n            });\n            return;\n        }\n        \n        if (msg.type === \"auth_ok\") {\n            engine.setStatus(\"connected\", \"Home Assistant Connected\");\n            transport.sendJSON({\n                id: ++this.msgId,\n                type: \"subscribe_events\",\n                event_type: \"state_changed\"\n            });\n            return;\n        }\n        \n        if (msg.type === \"auth_invalid\") {\n            engine.setStatus(\"failed\", \"Authentication Failed: \" + (msg.message || \"Invalid Token\"));\n            return;\n        }\n        \n        if (msg.type === \"event\" && msg.event && msg.event.event_type === \"state_changed\") {\n            var data = msg.event.data;\n            if (data && data.entity_id && data.new_state) {\n                var cleanEntity = data.entity_id.replace(/\\./g, \"_\");\n                engine.setVariable(\"ha_\" + cleanEntity + \"_state\", String(data.new_state.state));\n            }\n        }\n    }\n};"
 }

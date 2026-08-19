@@ -1,0 +1,141 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "template_pjlink_projector",
+  "name": "PJLink Projector (Class 1 & 2)",
+  "shortName": "PJLink",
+  "manufacturer": "PJLink / Panasonic / Epson / Optoma / NEC",
+  "version": "2.0.0",
+  "author": "Control-It Community",
+  "subtitle": "Standard Video Projector Control over TCP",
+  "descriptionText": "Universal PJLink Class 1 & 2 projector driver with MD5 challenge-response authentication, power control, input selection, audio/video muting, and lamp telemetry.",
+  "iconName": "tv.and.mediabox.fill",
+  "iconColorHex": "#0A84FF",
+  "defaultPort": "4352",
+  "defaultProtocol": "TCP",
+  "defaultHost": "192.168.1.120",
+  "origin": "Custom",
+  "connectionConfig": {
+    "protocol": "TCP_STREAM",
+    "transport": "TCP",
+    "defaultPort": "4352",
+    "defaultHost": "192.168.1.120",
+    "framing": "crlf",
+    "autoConnectOnLaunch": true,
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "Projector IP Address",
+        "type": "Text",
+        "defaultValue": "192.168.1.120",
+        "placeholder": "192.168.1.120",
+        "helpText": "Network IP address of your PJLink projector.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "PJLink Port",
+        "type": "Number",
+        "defaultValue": "4352",
+        "placeholder": "4352",
+        "helpText": "Standard PJLink TCP port is 4352.",
+        "isRequired": true
+      },
+      {
+        "id": "password",
+        "label": "PJLink Password (Optional)",
+        "type": "Text",
+        "defaultValue": "",
+        "placeholder": "Enter password if security is enabled",
+        "helpText": "MD5 challenge authentication password if configured on the projector.",
+        "isRequired": false,
+        "isSecret": true
+      }
+    ]
+  },
+  "driverScript": "module.exports = {\n  password: '',\n  authPrefix: '',\n  isAuthenticated: false,\n  onConnect: function(transport, config) {\n    this.password = config.password || '';\n    this.authPrefix = '';\n    this.isAuthenticated = false;\n    console.log('PJLink Projector Driver Connecting...');\n    engine.setStatus('connecting');\n  },\n  onMessage: function(transport, text, bytes) {\n    var msg = (text || '').trim();\n    console.log('PJLink RX: ' + msg);\n    if (msg.indexOf('PJLINK 0') === 0) {\n      this.isAuthenticated = true;\n      this.authPrefix = '';\n      engine.setStatus('connected');\n      transport.send('%1POWR ?\\r');\n      transport.send('%1INPT ?\\r');\n      transport.send('%1LAMP ?\\r');\n      return;\n    }\n    if (msg.indexOf('PJLINK 1 ') === 0) {\n      var randomKey = msg.substring(9).trim();\n      var digest = engine.crypto.md5(randomKey + this.password);\n      this.authPrefix = digest;\n      this.isAuthenticated = true;\n      engine.setStatus('connected');\n      transport.send(this.authPrefix + '%1POWR ?\\r');\n      transport.send(this.authPrefix + '%1INPT ?\\r');\n      transport.send(this.authPrefix + '%1LAMP ?\\r');\n      return;\n    }\n    if (msg.indexOf('%1POWR=') !== -1) {\n      var pstate = msg.split('=')[1];\n      var ptext = pstate === '1' ? 'ON' : (pstate === '0' ? 'STANDBY' : (pstate === '2' ? 'COOLING' : 'WARMING'));\n      engine.setVariable('projector_power', ptext);\n    }\n    if (msg.indexOf('%1INPT=') !== -1) {\n      var istate = msg.split('=')[1];\n      engine.setVariable('current_input', istate);\n    }\n    if (msg.indexOf('%1LAMP=') !== -1) {\n      var lparts = msg.split('=')[1].split(' ');\n      if (lparts.length >= 1) engine.setVariable('lamp_hours', lparts[0]);\n      if (lparts.length >= 2) engine.setVariable('lamp_status', lparts[1] === '1' ? 'ON' : 'OFF');\n    }\n  },\n  onAction: function(transport, actionId, params) {\n    var prefix = this.authPrefix || '';\n    if (actionId === 'power') {\n      var state = params.state === '0' || params.state === 'off' || params.state === 'standby' ? '0' : '1';\n      transport.send(prefix + '%1POWR ' + state + '\\r');\n      return 'PJLink: Power ' + (state === '1' ? 'ON' : 'OFF');\n    }\n    if (actionId === 'input_switch') {\n      var inputCode = params.input_source || '31';\n      transport.send(prefix + '%1INPT ' + inputCode + '\\r');\n      return 'PJLink: Switch Input to ' + inputCode;\n    }\n    if (actionId === 'mute') {\n      var muteCode = params.mute_mode || '30';\n      transport.send(prefix + '%1AVMT ' + muteCode + '\\r');\n      return 'PJLink: A/V Mute ' + muteCode;\n    }\n    if (actionId === 'query_status') {\n      transport.send(prefix + '%1POWR ?\\r');\n      transport.send(prefix + '%1INPT ?\\r');\n      transport.send(prefix + '%1LAMP ?\\r');\n      return 'PJLink: Queried Status';\n    }\n    return 'PJLink: Unknown action ' + actionId;\n  },\n  onDisconnect: function() {\n    engine.setStatus('disconnected');\n  }\n};",
+  "variables": [
+    {
+      "id": "projector_power",
+      "name": "Projector Power Status",
+      "descriptionText": "Current power state (ON, STANDBY, COOLING, WARMING)",
+      "sampleValue": "ON",
+      "variableType": "String"
+    },
+    {
+      "id": "current_input",
+      "name": "Active Input Source",
+      "descriptionText": "Active input code (31 = HDMI 1, 32 = HDMI 2, 11 = RGB)",
+      "sampleValue": "31",
+      "variableType": "String"
+    },
+    {
+      "id": "lamp_hours",
+      "name": "Lamp / Laser Hours",
+      "descriptionText": "Accumulated lamp or laser run hours",
+      "sampleValue": "342",
+      "variableType": "Number"
+    }
+  ],
+  "actions": [
+    {
+      "id": "power",
+      "title": "Set Projector Power",
+      "subtitle": "Power On or Standby",
+      "descriptionText": "Turns projector power on or switches to standby mode.",
+      "iconName": "power",
+      "iconColorHex": "#30D158",
+      "connectionType": "TCP",
+      "defaultPort": "4352",
+      "inputs": [
+        {
+          "id": "state",
+          "label": "Power State",
+          "type": "Dropdown",
+          "defaultValue": "1",
+          "dropdownChoices": ["1", "0"],
+          "isRequired": true
+        }
+      ]
+    },
+    {
+      "id": "input_switch",
+      "title": "Switch Input Source",
+      "subtitle": "Select HDMI, RGB, or Video Input",
+      "descriptionText": "Changes the active display input source.",
+      "iconName": "rectangle.connected.to.line.below",
+      "iconColorHex": "#0A84FF",
+      "connectionType": "TCP",
+      "defaultPort": "4352",
+      "inputs": [
+        {
+          "id": "input_source",
+          "label": "Input Source",
+          "type": "Dropdown",
+          "defaultValue": "31",
+          "dropdownChoices": ["31", "32", "11", "21"],
+          "isRequired": true
+        }
+      ]
+    },
+    {
+      "id": "mute",
+      "title": "Audio / Video Mute",
+      "subtitle": "Blank screen or mute audio",
+      "descriptionText": "Mutes or un-mutes the video shutter and audio output.",
+      "iconName": "speaker.slash.fill",
+      "iconColorHex": "#FF453A",
+      "connectionType": "TCP",
+      "defaultPort": "4352",
+      "inputs": [
+        {
+          "id": "mute_mode",
+          "label": "Mute Mode",
+          "type": "Dropdown",
+          "defaultValue": "31",
+          "dropdownChoices": ["31", "30", "11", "21"],
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

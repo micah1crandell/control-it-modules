@@ -103,5 +103,6 @@
         }
       ]
     }
-  ]
+  ],
+  "driverScript": "module.exports = {\n    onAction: function(transport, actionId, params) {\n        var token = engine.secret(\"oauth_token\") || \"\";\n        var headers = token ? { \"Authorization\": \"Bearer \" + token } : {};\n        if (actionId === \"spotify_play_pause\" || actionId === \"play_pause\") {\n            return engine.http.post(\"https://api.spotify.com/v1/me/player/play\", {}, headers).then(function(res) {\n                engine.setVariable(\"spotify_playback_state\", \"playing\");\n                return \"Resumed Playback\";\n            });\n        }\n        if (actionId === \"spotify_next\" || actionId === \"next\") {\n            return engine.http.post(\"https://api.spotify.com/v1/me/player/next\", {}, headers).then(function(res) {\n                return \"Skipped to Next Track\";\n            });\n        }\n        return \"Spotify Action Sent\";\n    }\n};"
 }

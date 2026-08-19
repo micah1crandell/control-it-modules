@@ -10,15 +10,15 @@
   "descriptionText": "Trigger transitions, active inputs, overlays, titles, and audio mixing on vMix Live Production software via HTTP / TCP API.",
   "iconName": "film.fill",
   "iconColorHex": "#0D47A1",
-  "defaultPort": "8088",
-  "defaultProtocol": "HTTP",
+  "defaultPort": "8099",
+  "defaultProtocol": "TCP",
   "defaultHost": "192.168.1.100",
   "helpUrl": "https://www.vmix.com/help26/WebAPI.html",
   "origin": "Community",
   "connectionConfig": {
-    "protocol": "HTTP",
-    "transport": "TCP",
-    "defaultPort": "8088",
+    "protocol": "TCP",
+    "transport": "TCP_STREAM",
+    "defaultPort": "8099",
     "defaultHost": "192.168.1.100",
     "autoConnectOnLaunch": true,
     "setupFields": [
@@ -40,7 +40,8 @@
         "helpText": "Default vMix Web API port is 8088 (or 8099 for TCP).",
         "isRequired": true
       }
-    ]
+    ],
+    "framing": "lineDelimiter"
   },
   "variables": [
     {
@@ -114,7 +115,16 @@
           "label": "Input Number",
           "type": "Dropdown",
           "defaultValue": "1",
-          "dropdownChoices": ["1", "2", "3", "4", "5", "6", "7", "8"]
+          "dropdownChoices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8"
+          ]
         }
       ],
       "uri": "/api/?Function=ActiveInput&Input={input_number}",
@@ -133,5 +143,6 @@
         }
       ]
     }
-  ]
+  ],
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to vMix TCP...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"connected\", \"vMix TCP Ready\");\n        transport.send(\"SUBSCRIBE TALLY\\r\\n\");\n        transport.send(\"TALLY\\r\\n\");\n    },\n    onHeartbeat: function(transport) {\n        transport.send(\"TALLY\\r\\n\");\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"vmix_cut\" || actionId === \"cut\") {\n            transport.send(\"FUNCTION Cut\\r\\n\");\n            return \"Cut Executed\";\n        }\n        if (actionId === \"vmix_fade\" || actionId === \"fade\") {\n            var dur = params.duration || \"500\";\n            transport.send(\"FUNCTION Fade Duration=\" + dur + \"\\r\\n\");\n            return \"Fade \" + dur + \"ms Executed\";\n        }\n        if (actionId === \"vmix_preview_input\" || actionId === \"preview\") {\n            var input = params.input_number || \"1\";\n            transport.send(\"FUNCTION PreviewInput Input=\" + input + \"\\r\\n\");\n            return \"Preview Input \" + input;\n        }\n        if (actionId === \"vmix_active_input\" || actionId === \"active\") {\n            var input = params.input_number || \"1\";\n            transport.send(\"FUNCTION ActiveInput Input=\" + input + \"\\r\\n\");\n            return \"Program Input \" + input;\n        }\n        return \"vMix Action Sent\";\n    },\n    onMessage: function(transport, text, bytes) {\n        if (!text) return;\n        var clean = text.trim();\n        if (clean.indexOf(\"TALLY OK \") === 0) {\n            var tallyStr = clean.substring(9);\n            for (var i = 0; i < tallyStr.length; i++) {\n                var code = tallyStr.charAt(i);\n                var inputNum = i + 1;\n                var state = \"OFF\";\n                if (code === \"1\") {\n                    state = \"PROGRAM\";\n                    engine.setVariable(\"vmix_program_input\", String(inputNum));\n                } else if (code === \"2\") {\n                    state = \"PREVIEW\";\n                    engine.setVariable(\"vmix_preview_input\", String(inputNum));\n                }\n                engine.setVariable(\"vmix_input_\" + inputNum + \"_tally\", state);\n            }\n        }\n    }\n};"
 }

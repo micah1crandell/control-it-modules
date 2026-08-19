@@ -1,0 +1,161 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "template_visca_ptz",
+  "name": "Sony VISCA over IP Camera (Template)",
+  "shortName": "VISCA PTZ",
+  "manufacturer": "Sony / PTZOptics / BirdDog",
+  "version": "2.0.0",
+  "author": "Control-It Community",
+  "subtitle": "Standard PTZ Camera Control over TCP/UDP",
+  "descriptionText": "Universal Sony VISCA over IP and RS-422 camera controller with byte-delimiter framing (0xFF). Supports pan, tilt, zoom, presets, and power control.",
+  "iconName": "video.fill",
+  "iconColorHex": "#FF9500",
+  "defaultPort": "5678",
+  "defaultProtocol": "TCP",
+  "defaultHost": "192.168.1.110",
+  "origin": "Custom",
+  "connectionConfig": {
+    "protocol": "TCP_STREAM",
+    "transport": "TCP",
+    "defaultPort": "5678",
+    "defaultHost": "192.168.1.110",
+    "framing": "byte_0xff",
+    "autoConnectOnLaunch": true,
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "Camera IP Address",
+        "type": "Text",
+        "defaultValue": "192.168.1.110",
+        "placeholder": "192.168.1.110",
+        "helpText": "Network IP address of your VISCA PTZ camera.",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "VISCA TCP/UDP Port",
+        "type": "Number",
+        "defaultValue": "5678",
+        "placeholder": "5678",
+        "helpText": "Default ports: 5678 (Sony TCP), 52381 (PTZOptics/UDP), 1259 (Panasonic/Birddog).",
+        "isRequired": true
+      },
+      {
+        "id": "camera_address",
+        "label": "Camera Address (1-7)",
+        "type": "Number",
+        "defaultValue": "1",
+        "placeholder": "1",
+        "helpText": "VISCA camera address index (1 is standard for IP).",
+        "isRequired": true
+      }
+    ]
+  },
+  "driverScript": "module.exports = {\n  cameraAddress: 1,\n  onConnect: function(transport, config) {\n    this.cameraAddress = parseInt(config.camera_address, 10) || 1;\n    console.log('VISCA Camera Driver Connected (Addr ' + this.cameraAddress + ')');\n    engine.setStatus('connected');\n    engine.setVariable('camera_power', 'ON');\n  },\n  onAction: function(transport, actionId, params) {\n    var addr = 0x80 | (this.cameraAddress & 0x07);\n    if (actionId === 'pan_tilt') {\n      var dir = params.direction || 'stop';\n      var ps = Math.min(24, Math.max(1, parseInt(params.pan_speed, 10) || 8));\n      var ts = Math.min(20, Math.max(1, parseInt(params.tilt_speed, 10) || 8));\n      var p1 = 0x03, p2 = 0x03;\n      if (dir === 'up') { p1 = 0x03; p2 = 0x01; }\n      else if (dir === 'down') { p1 = 0x03; p2 = 0x02; }\n      else if (dir === 'left') { p1 = 0x01; p2 = 0x03; }\n      else if (dir === 'right') { p1 = 0x02; p2 = 0x03; }\n      else if (dir === 'up_left') { p1 = 0x01; p2 = 0x01; }\n      else if (dir === 'up_right') { p1 = 0x02; p2 = 0x01; }\n      else if (dir === 'down_left') { p1 = 0x01; p2 = 0x02; }\n      else if (dir === 'down_right') { p1 = 0x02; p2 = 0x02; }\n      else if (dir === 'home') {\n        transport.sendBytes([addr, 0x01, 0x06, 0x04, 0xFF]);\n        return 'VISCA: Home';\n      }\n      transport.sendBytes([addr, 0x01, 0x06, 0x01, ps, ts, p1, p2, 0xFF]);\n      return 'VISCA: Drive ' + dir;\n    }\n    if (actionId === 'zoom') {\n      var zdir = params.direction || 'stop';\n      var zs = Math.min(7, Math.max(0, parseInt(params.speed, 10) || 4));\n      if (zdir === 'in') {\n        transport.sendBytes([addr, 0x01, 0x04, 0x07, 0x20 | (zs & 0x07), 0xFF]);\n      } else if (zdir === 'out') {\n        transport.sendBytes([addr, 0x01, 0x04, 0x07, 0x30 | (zs & 0x07), 0xFF]);\n      } else {\n        transport.sendBytes([addr, 0x01, 0x04, 0x07, 0x00, 0xFF]);\n      }\n      return 'VISCA: Zoom ' + zdir;\n    }\n    if (actionId === 'preset_recall') {\n      var presetNum = Math.min(127, Math.max(0, parseInt(params.preset_number, 10) || 1));\n      transport.sendBytes([addr, 0x01, 0x04, 0x3F, 0x02, presetNum, 0xFF]);\n      engine.setVariable('last_preset', String(presetNum));\n      return 'VISCA: Recalled Preset ' + presetNum;\n    }\n    if (actionId === 'preset_store') {\n      var storeNum = Math.min(127, Math.max(0, parseInt(params.preset_number, 10) || 1));\n      transport.sendBytes([addr, 0x01, 0x04, 0x3F, 0x01, storeNum, 0xFF]);\n      return 'VISCA: Stored Preset ' + storeNum;\n    }\n    return 'VISCA: Unknown action ' + actionId;\n  },\n  onMessage: function(transport, text, bytes) {\n    if (bytes && bytes.length >= 3) {\n      if (bytes[1] === 0x41) {\n        console.log('VISCA ACK received');\n      } else if (bytes[1] === 0x51) {\n        console.log('VISCA Completion received');\n      }\n    }\n  },\n  onDisconnect: function() {\n    engine.setStatus('disconnected');\n  }\n};",
+  "variables": [
+    {
+      "id": "camera_power",
+      "name": "Camera Power State",
+      "descriptionText": "Power status of camera",
+      "sampleValue": "ON",
+      "variableType": "String"
+    },
+    {
+      "id": "last_preset",
+      "name": "Last Recalled Preset",
+      "descriptionText": "Index of the most recently recalled camera preset",
+      "sampleValue": "1",
+      "variableType": "Number"
+    }
+  ],
+  "actions": [
+    {
+      "id": "pan_tilt",
+      "title": "Pan / Tilt Camera",
+      "subtitle": "Drive PTZ camera direction and speed",
+      "descriptionText": "Sends VISCA pan/tilt binary drive packets to the camera.",
+      "iconName": "arrow.up.and.down.and.arrow.left.and.right",
+      "iconColorHex": "#FF9500",
+      "connectionType": "TCP",
+      "defaultPort": "5678",
+      "inputs": [
+        {
+          "id": "direction",
+          "label": "Drive Direction",
+          "type": "Dropdown",
+          "defaultValue": "up",
+          "dropdownChoices": ["up", "down", "left", "right", "up_left", "up_right", "down_left", "down_right", "home", "stop"],
+          "isRequired": true
+        },
+        {
+          "id": "pan_speed",
+          "label": "Pan Speed (1-24)",
+          "type": "Number",
+          "defaultValue": "8",
+          "minValue": 1,
+          "maxValue": 24,
+          "stepValue": 1
+        },
+        {
+          "id": "tilt_speed",
+          "label": "Tilt Speed (1-20)",
+          "type": "Number",
+          "defaultValue": "8",
+          "minValue": 1,
+          "maxValue": 20,
+          "stepValue": 1
+        }
+      ]
+    },
+    {
+      "id": "zoom",
+      "title": "Zoom Lens",
+      "subtitle": "Zoom in, out, or stop",
+      "descriptionText": "Drives the optical zoom tele/wide motor at variable speed.",
+      "iconName": "plus.magnifyingglass",
+      "iconColorHex": "#30D158",
+      "connectionType": "TCP",
+      "defaultPort": "5678",
+      "inputs": [
+        {
+          "id": "direction",
+          "label": "Zoom Direction",
+          "type": "Dropdown",
+          "defaultValue": "in",
+          "dropdownChoices": ["in", "out", "stop"],
+          "isRequired": true
+        },
+        {
+          "id": "speed",
+          "label": "Zoom Speed (0-7)",
+          "type": "Number",
+          "defaultValue": "4",
+          "minValue": 0,
+          "maxValue": 7,
+          "stepValue": 1
+        }
+      ]
+    },
+    {
+      "id": "preset_recall",
+      "title": "Recall Preset",
+      "subtitle": "Move camera to stored position",
+      "descriptionText": "Recalls a saved PTZ preset position.",
+      "iconName": "bookmark.fill",
+      "iconColorHex": "#0A84FF",
+      "connectionType": "TCP",
+      "defaultPort": "5678",
+      "inputs": [
+        {
+          "id": "preset_number",
+          "label": "Preset Number (1-128)",
+          "type": "Number",
+          "defaultValue": "1",
+          "minValue": 1,
+          "maxValue": 128,
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

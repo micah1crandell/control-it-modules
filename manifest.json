@@ -3,7 +3,7 @@
   "repository": "https://github.com/micah1crandell/control-it-modules",
   "name": "Control-It Community Modules",
   "description": "Official community registry of open-source hardware & software control modules for the Control-It iOS app.",
-  "updatedAt": "2026-08-18T14:48:13.000Z",
+  "updatedAt": "2026-08-19T20:12:48.813942+00:00",
   "modules": [
     {
       "id": "behringer_x32",
@@ -20,7 +20,7 @@
       "defaultProtocol": "OSC",
       "actionCount": 3,
       "file": "modules/behringer_x32.json",
-      "sha256": "069b2df676f731690662494b86c3d1329e28c28007e7260a3075e4993763867b"
+      "sha256": "7ffbbe9a3093d3b6042b795692e8f88b79c28e12c7d1d9c80e9cfd0101554669"
     },
     {
       "id": "blackmagic_atem",
@@ -37,7 +37,7 @@
       "defaultProtocol": "CUSTOM",
       "actionCount": 6,
       "file": "modules/blackmagic_atem.json",
-      "sha256": "2f9c8f3fccd871cc25a0250214d48b4a7b2ac9d8456bf17d5d5380e8b84a6d34"
+      "sha256": "46817a026b48edd2e2218682e49f0edc34d708c1b1c9fd3fe55d5adabe0366c4"
     },
     {
       "id": "generic_rest_api",
@@ -54,7 +54,7 @@
       "defaultProtocol": "HTTP",
       "actionCount": 1,
       "file": "modules/generic_rest_api.json",
-      "sha256": "b587ec5e22687fa1bc4ae10aa6f1d9d597cfe1e657c5d8ab127d2327043ad6b6"
+      "sha256": "5e0855d8876d8f9bc6d06854509012c1ce479121c1ffe60ccbd60def2ad56230"
     },
     {
       "id": "home_assistant",
@@ -71,7 +71,7 @@
       "defaultProtocol": "HTTP",
       "actionCount": 2,
       "file": "modules/home_assistant.json",
-      "sha256": "f5273b0e1f5fcc241b419e172cbb77b09a88728b370ce5f9b4b96c93f48afbd2"
+      "sha256": "b57e49b297b8dd7161f3bbb3ae1af47ef7e77aad267234453697ea5d0b01f4ac"
     },
     {
       "id": "obs_studio",
@@ -105,7 +105,7 @@
       "defaultProtocol": "HTTP",
       "actionCount": 2,
       "file": "modules/philips_hue.json",
-      "sha256": "3f258763dbe01ba2b25951882226aa89491557ab3aaf14e2628bc61a6944b679"
+      "sha256": "c0b8fa2d9a1283bccd7f93d5f398219bf6cf89ae58943388e01ffdb28cd83231"
     },
     {
       "id": "propresenter_7",
@@ -122,7 +122,7 @@
       "defaultProtocol": "HTTP",
       "actionCount": 3,
       "file": "modules/propresenter_7.json",
-      "sha256": "3eadf64f349d3bbd411a5443caa0cf4f0a709bc0954aa63927734ca24d0ff474"
+      "sha256": "1ddd28c9025923f7d458befb0020b8484fd5c5c62df3a138df168d58d0369359"
     },
     {
       "id": "spotify_player",
@@ -139,7 +139,7 @@
       "defaultProtocol": "HTTP",
       "actionCount": 2,
       "file": "modules/spotify_player.json",
-      "sha256": "8f85a298703706d1d22876008c4e5ecb1ad0ada2f153b00b11feae7b6f079f3f"
+      "sha256": "23a2634d8d914ba61fba72376cf053ff47e3cfbee301570b294fe58540d2e88f"
     },
     {
       "id": "vlc_media_player",
@@ -156,7 +156,7 @@
       "defaultProtocol": "HTTP",
       "actionCount": 3,
       "file": "modules/vlc_media_player.json",
-      "sha256": "2378cfd4064785b1b57628f4ba1e16b7e6a00e39af4717e5237f836dfe558e06"
+      "sha256": "a78824cddc06cd43b708f33721ce6416246d0068e481289b1d07d5d6b308919f"
     },
     {
       "id": "vmix_switcher",
@@ -173,7 +173,7 @@
       "defaultProtocol": "HTTP",
       "actionCount": 3,
       "file": "modules/vmix_switcher.json",
-      "sha256": "5f0418ebebf69a5248d01cd7a16395ffcc02fd3231c29b2513a3069b7b3ccbec"
+      "sha256": "b6e7f4f8f9d0efbbcf608321de4d903b81ca115da0a82feda73a819b1d0eff30"
     },
     {
       "id": "zoom_osc",
@@ -190,7 +190,7 @@
       "defaultProtocol": "OSC",
       "actionCount": 3,
       "file": "modules/zoom_osc.json",
-      "sha256": "790caee3dc71e5bc72d68a4a2ae940267e9bbf38278753705e18751806bd2a7a"
+      "sha256": "aa226bedd5dab8d580602ff6d6fccf21e4b5d10704b954f1941e785ab19c1287"
     }
   ]
 }

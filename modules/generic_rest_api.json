@@ -106,5 +106,6 @@
         }
       ]
     }
-  ]
+  ],
+  "driverScript": "module.exports = {\n    onAction: function(transport, actionId, params) {\n        var method = (params.method || \"GET\").toUpperCase();\n        var uri = params.uri || \"/\";\n        var headers = {};\n        if (params.auth_token) {\n            headers[\"Authorization\"] = \"Bearer \" + params.auth_token;\n        }\n        if (method === \"GET\") {\n            return engine.http.get(uri, headers).then(function(res) {\n                engine.setVariable(\"rest_last_status\", String(res.status));\n                return \"Status \" + res.status + \" (\" + res.data.length + \" bytes)\";\n            });\n        } else {\n            return engine.http.post(uri, params.body || \"\", headers).then(function(res) {\n                engine.setVariable(\"rest_last_status\", String(res.status));\n                return \"Status \" + res.status + \" (\" + res.data.length + \" bytes)\";\n            });\n        }\n    }\n};"
 }

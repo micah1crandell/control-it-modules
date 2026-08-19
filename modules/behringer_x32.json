@@ -45,7 +45,8 @@
         "helpText": "Default X32 OSC control port is 10023.",
         "isRequired": true
       }
-    ]
+    ],
+    "heartbeatIntervalSeconds": 7.0
   },
   "variables": [
     {
@@ -72,7 +73,24 @@
           "label": "Channel Number (01-32)",
           "type": "Dropdown",
           "defaultValue": "01",
-          "dropdownChoices": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16"]
+          "dropdownChoices": [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "09",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16"
+          ]
         }
       ],
       "oscPath": "/ch/{channel_id}/mix/on",
@@ -106,7 +124,24 @@
           "label": "Channel Number (01-32)",
           "type": "Dropdown",
           "defaultValue": "01",
-          "dropdownChoices": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16"]
+          "dropdownChoices": [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "09",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16"
+          ]
         }
       ],
       "oscPath": "/ch/{channel_id}/mix/on",
@@ -154,5 +189,6 @@
         }
       ]
     }
-  ]
+  ],
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to X32/M32 OSC...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"connected\", \"X32 / M32 Ready\");\n        var xremote = engine.osc.encode(\"/xremote\", []);\n        transport.sendBytes(xremote);\n    },\n    onHeartbeat: function(transport) {\n        var xremote = engine.osc.encode(\"/xremote\", []);\n        transport.sendBytes(xremote);\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"x32_mute_ch1\" || actionId === \"mute_channel\") {\n            var ch = String(params.channel_id || \"01\");\n            if (ch.length === 1) ch = \"0\" + ch;\n            var bytes = engine.osc.encode(\"/ch/\" + ch + \"/mix/on\", [0]);\n            transport.sendBytes(bytes);\n            engine.setVariable(\"x32_ch_\" + ch + \"_muted\", \"true\");\n            return \"Muted Channel \" + ch;\n        }\n        if (actionId === \"x32_unmute_ch1\" || actionId === \"unmute_channel\") {\n            var ch = String(params.channel_id || \"01\");\n            if (ch.length === 1) ch = \"0\" + ch;\n            var bytes = engine.osc.encode(\"/ch/\" + ch + \"/mix/on\", [1]);\n            transport.sendBytes(bytes);\n            engine.setVariable(\"x32_ch_\" + ch + \"_muted\", \"false\");\n            return \"Unmuted Channel \" + ch;\n        }\n        if (actionId === \"x32_main_fader\" || actionId === \"main_fader\") {\n            var lvl = parseFloat(params.level || \"0.75\");\n            var bytes = engine.osc.encode(\"/main/st/mix/fader\", [lvl]);\n            transport.sendBytes(bytes);\n            engine.setVariable(\"x32_main_fader\", String(lvl));\n            return \"Set Main LR Fader to \" + lvl;\n        }\n        return \"X32 Action Executed\";\n    },\n    onMessage: function(transport, text, bytes) {\n        var msg = engine.osc.decode(bytes);\n        if (!msg || !msg.address) return;\n        var addr = msg.address;\n        var args = msg.args || [];\n        \n        var chMute = addr.match(/\\/ch\\/(\\d{2})\\/mix\\/on$/);\n        if (chMute && args.length > 0) {\n            var ch = chMute[1];\n            var isOn = (args[0] === 1 || args[0] === true || args[0] === \"1\");\n            engine.setVariable(\"x32_ch_\" + ch + \"_muted\", isOn ? \"false\" : \"true\");\n        }\n        \n        var fader = addr.match(/\\/ch\\/(\\d{2})\\/mix\\/fader$/);\n        if (fader && args.length > 0) {\n            var ch = fader[1];\n            var val = typeof args[0] === \"number\" ? args[0].toFixed(2) : String(args[0]);\n            engine.setVariable(\"x32_ch_\" + ch + \"_fader\", val);\n        }\n        \n        if (addr === \"/main/st/mix/fader\" && args.length > 0) {\n            var val = typeof args[0] === \"number\" ? args[0].toFixed(2) : String(args[0]);\n            engine.setVariable(\"x32_main_fader\", val);\n        }\n    }\n};"
 }

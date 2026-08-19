@@ -119,5 +119,6 @@
         }
       ]
     }
-  ]
+  ],
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to ProPresenter 7 API...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"connected\", \"ProPresenter 7 Ready\");\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"pp7_next\" || actionId === \"next_slide\") {\n            return engine.http.get(\"/v1/presentation/active/next\").then(function(res) {\n                return \"Triggered Next Slide\";\n            });\n        }\n        if (actionId === \"pp7_prev\" || actionId === \"prev_slide\") {\n            return engine.http.get(\"/v1/presentation/active/previous\").then(function(res) {\n                return \"Triggered Previous Slide\";\n            });\n        }\n        if (actionId === \"pp7_clear_all\" || actionId === \"clear_all\") {\n            return engine.http.get(\"/v1/clear/all\").then(function(res) {\n                return \"Cleared All Layers\";\n            });\n        }\n        return \"ProPresenter Action Executed\";\n    }\n};"
 }
