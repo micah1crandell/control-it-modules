@@ -136,6 +136,16 @@
           "isRequired": true
         }
       ]
+    },
+    {
+      "id": "query_status",
+      "title": "Query Projector Status",
+      "subtitle": "Poll power, input, and lamp hours",
+      "descriptionText": "Queries current projector power state, active input source, and lamp run hours.",
+      "iconName": "waveform.path.ecg",
+      "iconColorHex": "#0A84FF",
+      "connectionType": "TCP",
+      "defaultPort": "4352"
     }
   ]
 }

@@ -69,15 +69,7 @@
       "connectionType": "HTTP",
       "defaultPort": "1025",
       "uri": "/v1/trigger/next",
-      "httpMethod": "POST",
-      "dynamicTitleParsingRule": "SLIDE {{current_slide}}",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{current_slide}} > 0",
-          "colorName": "Blue"
-        }
-      ]
+      "httpMethod": "POST"
     },
     {
       "id": "propresenter_prev_slide",
@@ -89,15 +81,7 @@
       "connectionType": "HTTP",
       "defaultPort": "1025",
       "uri": "/v1/trigger/prev",
-      "httpMethod": "POST",
-      "dynamicTitleParsingRule": "SLIDE {{current_slide}}",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{current_slide}} > 1",
-          "colorName": "Blue"
-        }
-      ]
+      "httpMethod": "POST"
     },
     {
       "id": "propresenter_clear_all",
@@ -109,16 +93,33 @@
       "connectionType": "HTTP",
       "defaultPort": "1025",
       "uri": "/v1/clear/all",
-      "httpMethod": "POST",
-      "dynamicTitleParsingRule": "CLEAR ALL",
+      "httpMethod": "POST"
+    },
+    {
+      "id": "propresenter_get_active_slide",
+      "title": "ProPresenter: Get Active Slide",
+      "subtitle": "Query active presentation & slide index",
+      "descriptionText": "Fetches current presentation name and active slide index from ProPresenter 7 API.",
+      "iconName": "tv",
+      "iconColorHex": "#1565C0",
+      "connectionType": "HTTP",
+      "defaultPort": "1025",
+      "uri": "/v1/presentation/active",
+      "httpMethod": "GET",
+      "dynamicTitleParsingRule": "SLIDE {{current_slide}}",
       "dynamicColorRules": [
         {
           "id": "c1",
+          "condition": "{{current_slide}} > 0",
+          "colorName": "Blue"
+        },
+        {
+          "id": "c2",
           "condition": "{{current_slide}} == 0",
-          "colorName": "Green"
+          "colorName": "Default"
         }
       ]
     }
   ],
-  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to ProPresenter 7 API...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"connected\", \"ProPresenter 7 Ready\");\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"pp7_next\" || actionId === \"next_slide\") {\n            return engine.http.get(\"/v1/presentation/active/next\").then(function(res) {\n                return \"Triggered Next Slide\";\n            });\n        }\n        if (actionId === \"pp7_prev\" || actionId === \"prev_slide\") {\n            return engine.http.get(\"/v1/presentation/active/previous\").then(function(res) {\n                return \"Triggered Previous Slide\";\n            });\n        }\n        if (actionId === \"pp7_clear_all\" || actionId === \"clear_all\") {\n            return engine.http.get(\"/v1/clear/all\").then(function(res) {\n                return \"Cleared All Layers\";\n            });\n        }\n        return \"ProPresenter Action Executed\";\n    }\n};"
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to ProPresenter 7 API...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"connected\", \"ProPresenter 7 Ready\");\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"propresenter_get_active_slide\" || actionId === \"get_active_slide\" || actionId === \"get_status\") {\n            return engine.http.get(\"/v1/presentation/active\").then(function(res) {\n                if (res.json && res.json.presentation && res.json.presentation.slide_index !== undefined) {\n                    engine.setVariable(\"current_slide\", String(res.json.presentation.slide_index));\n                }\n                return \"Queried Active Slide\";\n            });\n        }\n        if (actionId === \"pp7_next\" || actionId === \"next_slide\") {\n            return engine.http.get(\"/v1/presentation/active/next\").then(function(res) {\n                return \"Triggered Next Slide\";\n            });\n        }\n        if (actionId === \"pp7_prev\" || actionId === \"prev_slide\") {\n            return engine.http.get(\"/v1/presentation/active/previous\").then(function(res) {\n                return \"Triggered Previous Slide\";\n            });\n        }\n        if (actionId === \"pp7_clear_all\" || actionId === \"clear_all\") {\n            return engine.http.get(\"/v1/clear/all\").then(function(res) {\n                return \"Cleared All Layers\";\n            });\n        }\n        return \"ProPresenter Action Executed\";\n    }\n};"
 }

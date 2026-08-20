@@ -6,6 +6,86 @@
  * typecheck, and validate custom hardware driver scripts for Control-It.
  */
 
+export interface ColorRuleBlock {
+  id?: string;
+  condition: string;
+  colorName: string;
+  customColorHex?: string;
+  actionSourceTitle?: string;
+  iconName?: string;
+  tallyStyle?: 'solid' | 'pulse';
+  isEnabled?: boolean;
+  label?: string;
+}
+
+export interface ActionInputDefinition {
+  id: string;
+  label: string;
+  type: 'Text' | 'Number' | 'Dropdown' | 'Toggle';
+  defaultValue?: string;
+  dropdownChoices?: string[];
+  placeholder?: string;
+  descriptionText?: string;
+  minValue?: number;
+  maxValue?: number;
+  stepValue?: number;
+  isRequired?: boolean;
+  isSecret?: boolean;
+  dynamicSource?: string;
+}
+
+export interface PremadeModuleAction {
+  id: string;
+  title: string;
+  subtitle?: string;
+  descriptionText?: string;
+  iconName?: string;
+  iconColorHex?: string;
+  connectionType?: string;
+  defaultPort?: string;
+  uri?: string;
+  httpMethod?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  httpBody?: string;
+  headers?: Array<{ key: string; value: string }>;
+  oscAddress?: string;
+  oscArgs?: any[];
+  tcpPayload?: string;
+  udpPayload?: string;
+  customScript?: string;
+  dynamicTitleParsingRule?: string;
+  dynamicColorRules?: ColorRuleBlock[];
+  participatesInPolling?: boolean;
+  pollingIntervalSeconds?: number;
+  inputs?: ActionInputDefinition[];
+}
+
+export interface ModuleVariable {
+  id: string;
+  name: string;
+  descriptionText?: string;
+  sampleValue?: string;
+  variableType?: 'String' | 'Number' | 'Boolean' | 'JSON';
+}
+
+export interface CompanionModule {
+  $schema?: string;
+  id: string;
+  name: string;
+  shortName?: string;
+  version: string;
+  author?: string;
+  descriptionText?: string;
+  iconName?: string;
+  iconColorHex?: string;
+  helpUrl?: string;
+  defaultProtocol?: string;
+  defaultPort?: string;
+  connectionConfig?: Record<string, any>;
+  driverScript?: string;
+  variables?: ModuleVariable[];
+  actions: PremadeModuleAction[];
+}
+
 export interface ModuleConfig {
   host: string;
   port: number;
@@ -132,6 +212,33 @@ export interface EngineOSC {
 export interface EngineBinary {
   pack(format: string, values: any[]): number[];
   unpack(format: string, bytes: number[] | Buffer): any[];
+  /** Returns the bit at the specified index (0 or 1) */
+  getBit(byte: number, bitIndex: number): number;
+  /** Sets or clears the bit at bitIndex and returns the updated number */
+  setBit(byte: number, bitIndex: number, value: number): number;
+  /** Reads a bitfield of bitCount length starting at startBit */
+  readBits(value: number, startBit: number, bitCount: number): number;
+  /** Writes a bitfield of bitCount length at startBit and returns the updated number */
+  writeBits(targetValue: number, startBit: number, bitCount: number, newBits: number): number;
+}
+
+export interface EngineXML {
+  /** Converts XML documents or SOAP payloads into JSON-compatible JavaScript objects */
+  parse(xmlString: string): Record<string, any> | null;
+}
+
+export interface EngineParsers {
+  /** Parses key-value formatted text (e.g. KEY=VALUE or KEY: VALUE) into an object */
+  parseKeyValue(text: string, delimiter?: string): Record<string, string>;
+  /** Splits text into trimmed, non-empty lines */
+  parseLineTokens(text: string): string[];
+}
+
+export interface EngineMIDI {
+  /** Sends raw MIDI System Exclusive (SysEx 0xF0 ... 0xF7) bytes */
+  sendSysEx(bytes: number[] | Buffer): void;
+  /** Sends raw MIDI byte sequence */
+  sendBytes(bytes: number[] | Buffer): void;
 }
 
 export interface EngineHTTP {
@@ -148,9 +255,47 @@ export interface EngineTelnet {
   negotiate(bytes: number[] | Buffer): number[];
 }
 
-export interface EngineStream {
-  /** Creates an accumulator parser for continuous, delimiter-less JSON socket streams */
-  createJSONParser(): JSONStreamParser;
+export interface EngineMQTT {
+  publish(topic: string, payload: string | number[] | Buffer | Record<string, any>, qos?: 0 | 1 | 2, retain?: boolean): boolean;
+  subscribe(topic: string, qos?: 0 | 1 | 2, handler?: (topic: string, payload: string) => void): void;
+}
+
+export interface EngineBLE {
+  write(serviceUUID: string, characteristicUUID: string, bytes: number[] | Buffer, withResponse?: boolean): boolean;
+}
+
+export interface EngineArtNet {
+  /** Sends an Art-Net DMX512 frame to universe (0-32767) */
+  sendDMX(universe: number, channels: number[] | Buffer, host?: string, port?: number): boolean;
+}
+
+export interface EngineSACN {
+  /** Sends an E1.31 Streaming-ACN DMX frame to universe (1-63999) with priority (0-200) */
+  send(universe: number, priority: number, channels: number[] | Buffer, host?: string): boolean;
+}
+
+export interface AuxiliaryTransport {
+  id: string;
+  send(text: string): boolean;
+  sendBytes(bytes: number[] | Buffer): boolean;
+  sendHex(hexStr: string): boolean;
+  sendJSON(object: Record<string, any>): boolean;
+  onMessage(callback: (data: string | number[]) => void): void;
+  onState(callback: (state: string) => void): void;
+  close(): void;
+  isConnected(): boolean;
+}
+
+export interface TransportCreateOptions {
+  type: 'TCP' | 'UDP' | 'WEBSOCKET' | 'WS' | 'WSS' | 'SSH' | 'MQTT' | 'BLE';
+  host: string;
+  port?: number;
+  tls?: boolean;
+  framing?: 'raw' | 'line' | 'lf' | 'crlf' | 'slip' | 'visca';
+  username?: string;
+  password?: string;
+  urlPath?: string;
+  subprotocols?: string[];
 }
 
 export interface Engine {
@@ -159,9 +304,22 @@ export interface Engine {
   checksum: EngineChecksum;
   osc: EngineOSC;
   binary: EngineBinary;
+  xml: EngineXML;
+  parsers: EngineParsers;
+  midi: EngineMIDI;
   http: EngineHTTP;
   telnet: EngineTelnet;
   stream: EngineStream;
+  mqtt: EngineMQTT;
+  ble: EngineBLE;
+  artnet: EngineArtNet;
+  sacn: EngineSACN;
+
+  /** Dynamically instantiates a secondary persistent transport connection */
+  createTransport(options: TransportCreateOptions): AuxiliaryTransport;
+
+  /** Updates dynamic choices for action dropdown pickers in the UI */
+  setActionChoices(actionId: string, inputId: string, choices: string[] | { label: string; value: string }[]): void;
 
   /** Updates a dynamic variable in Control-It for live button colors, titles, and tally feedback */
   setVariable(key: string, value: string | number | boolean): void;
@@ -209,6 +367,34 @@ declare global {
   const transport: Transport;
   const module: { exports: DriverModuleExports };
   const exports: DriverModuleExports;
+
+  function fetch(url: string, options?: { method?: string; headers?: Record<string, string>; body?: any }): Promise<{
+    ok: boolean;
+    status: number;
+    statusText: string;
+    headers: { get(name: string): string | null };
+    text(): Promise<string>;
+    json(): Promise<any>;
+    arrayBuffer(): Promise<number[]>;
+  }>;
+
+  class WebSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+
+    readonly readyState: number;
+    readonly url: string;
+    onopen: ((event: { type: 'open' }) => void) | null;
+    onmessage: ((event: { data: string | number[] }) => void) | null;
+    onerror: ((event: { type: 'error' }) => void) | null;
+    onclose: ((event: { type: 'close'; code: number }) => void) | null;
+
+    constructor(url: string, protocols?: string | string[]);
+    send(data: string | number[] | Buffer | Record<string, any>): void;
+    close(): void;
+  }
 
   class Buffer {
     length: number;
@@ -276,3 +462,4 @@ declare global {
   function setInterval(fn: (...args: any[]) => void, intervalMs: number): string;
   function clearInterval(id: string): void;
 }
+

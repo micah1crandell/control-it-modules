@@ -69,15 +69,7 @@
       "connectionType": "OSC",
       "defaultPort": "9090",
       "oscPath": "/zoom/all/mute",
-      "oscValue": "1",
-      "dynamicTitleParsingRule": "MUTE ALL",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{zoom_all_muted}} == true",
-          "colorName": "Red"
-        }
-      ]
+      "oscValue": "1"
     },
     {
       "id": "zoom_unmute_all",
@@ -89,15 +81,7 @@
       "connectionType": "OSC",
       "defaultPort": "9090",
       "oscPath": "/zoom/all/unmute",
-      "oscValue": "1",
-      "dynamicTitleParsingRule": "UNMUTE ALL",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{zoom_all_muted}} == false",
-          "colorName": "Green"
-        }
-      ]
+      "oscValue": "1"
     },
     {
       "id": "zoom_raise_hand",
@@ -109,21 +93,33 @@
       "connectionType": "OSC",
       "defaultPort": "9090",
       "oscPath": "/zoom/me/toggleHand",
+      "oscValue": "1"
+    },
+    {
+      "id": "zoom_get_meeting_status",
+      "title": "ZoomOSC: Get Meeting Status",
+      "subtitle": "Query mute & hand raise status",
+      "descriptionText": "Queries meeting participant audio mute status and hand raise state.",
+      "iconName": "person.2.fill",
+      "iconColorHex": "#2D8CFF",
+      "connectionType": "OSC",
+      "defaultPort": "9090",
+      "oscPath": "/zoom/ping",
       "oscValue": "1",
-      "dynamicTitleParsingRule": "HAND: {{zoom_hand_raised}}",
+      "dynamicTitleParsingRule": "ZOOM: {{zoom_all_muted}}",
       "dynamicColorRules": [
         {
           "id": "c1",
-          "condition": "{{zoom_hand_raised}} == true",
-          "colorName": "Yellow"
+          "condition": "{{zoom_all_muted}} == true",
+          "colorName": "Red"
         },
         {
           "id": "c2",
-          "condition": "{{zoom_hand_raised}} == false",
-          "colorName": "Default"
+          "condition": "{{zoom_all_muted}} == false",
+          "colorName": "Green"
         }
       ]
     }
   ],
-  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Initializing ZoomOSC Session...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"connected\", \"ZoomOSC Session Active\");\n        var sub = engine.osc.encode(\"/zoom/subscribe\", [1]);\n        transport.sendBytes(sub);\n    },\n    onHeartbeat: function(transport) {\n        var sub = engine.osc.encode(\"/zoom/subscribe\", [1]);\n        transport.sendBytes(sub);\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"zoom_mute_all\" || actionId === \"mute_all\") {\n            var packet = engine.osc.encode(\"/zoom/all/mute\", []);\n            transport.sendBytes(packet);\n            engine.setVariable(\"zoom_mute_status\", \"muted\");\n            return \"Muted All Participants\";\n        }\n        if (actionId === \"zoom_unmute_all\" || actionId === \"unmute_all\") {\n            var packet = engine.osc.encode(\"/zoom/all/unMute\", []);\n            transport.sendBytes(packet);\n            engine.setVariable(\"zoom_mute_status\", \"unmuted\");\n            return \"Unmuted All Participants\";\n        }\n        if (actionId === \"zoom_spotlight\" || actionId === \"spotlight\") {\n            var name = params.user_name || \"Host\";\n            var packet = engine.osc.encode(\"/zoom/userName/spot\", [name]);\n            transport.sendBytes(packet);\n            return \"Spotlighted \" + name;\n        }\n        return \"Zoom Action Executed\";\n    },\n    onMessage: function(transport, text, bytes) {\n        var osc = engine.osc.decode(bytes);\n        if (!osc || !osc.address) return;\n        if (osc.address.indexOf(\"/zoom/user/\") === 0) {\n            engine.setVariable(\"zoom_active_speaker\", String(osc.args[0] || \"\"));\n        }\n    }\n};"
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Initializing ZoomOSC Session...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"connected\", \"ZoomOSC Session Active\");\n        var sub = engine.osc.encode(\"/zoom/subscribe\", [1]);\n        transport.sendBytes(sub);\n    },\n    onHeartbeat: function(transport) {\n        var sub = engine.osc.encode(\"/zoom/subscribe\", [1]);\n        transport.sendBytes(sub);\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"zoom_get_meeting_status\" || actionId === \"get_meeting_status\" || actionId === \"get_status\") {\n            var isMuted = engine.getVariable(\"zoom_all_muted\") || \"false\";\n            return \"Zoom Meeting Muted: \" + isMuted;\n        }\n        if (actionId === \"zoom_mute_all\" || actionId === \"mute_all\") {\n            var packet = engine.osc.encode(\"/zoom/all/mute\", []);\n            transport.sendBytes(packet);\n            engine.setVariable(\"zoom_mute_status\", \"muted\");\n            return \"Muted All Participants\";\n        }\n        if (actionId === \"zoom_unmute_all\" || actionId === \"unmute_all\") {\n            var packet = engine.osc.encode(\"/zoom/all/unMute\", []);\n            transport.sendBytes(packet);\n            engine.setVariable(\"zoom_mute_status\", \"unmuted\");\n            return \"Unmuted All Participants\";\n        }\n        if (actionId === \"zoom_spotlight\" || actionId === \"spotlight\") {\n            var name = params.user_name || \"Host\";\n            var packet = engine.osc.encode(\"/zoom/userName/spot\", [name]);\n            transport.sendBytes(packet);\n            return \"Spotlighted \" + name;\n        }\n        return \"Zoom Action Executed\";\n    },\n    onMessage: function(transport, text, bytes) {\n        var osc = engine.osc.decode(bytes);\n        if (!osc || !osc.address) return;\n        if (osc.address.indexOf(\"/zoom/user/\") === 0) {\n            engine.setVariable(\"zoom_active_speaker\", String(osc.args[0] || \"\"));\n        }\n    }\n};"
 }

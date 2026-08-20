@@ -88,19 +88,6 @@
           "key": "Content-Type",
           "value": "application/json"
         }
-      ],
-      "dynamicTitleParsingRule": "{entity_id}",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{ha_state_{entity_id}}} == on",
-          "colorName": "Yellow"
-        },
-        {
-          "id": "c2",
-          "condition": "{{ha_state_{entity_id}}} == off",
-          "colorName": "Default"
-        }
       ]
     },
     {
@@ -129,16 +116,48 @@
           "key": "Content-Type",
           "value": "application/json"
         }
+      ]
+    },
+    {
+      "id": "ha_get_entity_state",
+      "title": "Home Assistant: Get Entity State",
+      "subtitle": "Query entity power or sensor state",
+      "descriptionText": "Fetches current state of a light, switch, sensor, or binary_sensor from Home Assistant REST API.",
+      "iconName": "waveform.path.ecg",
+      "iconColorHex": "#03A9F4",
+      "connectionType": "HTTP",
+      "defaultPort": "8123",
+      "inputs": [
+        {
+          "id": "entity_id",
+          "label": "Entity ID",
+          "type": "Text",
+          "defaultValue": "switch.studio_on_air_light",
+          "placeholder": "e.g. light.desk, switch.studio_relay"
+        }
       ],
-      "dynamicTitleParsingRule": "{automation_id}",
+      "uri": "/api/states/{entity_id}",
+      "httpMethod": "GET",
+      "headers": [
+        {
+          "key": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "dynamicTitleParsingRule": "{entity_id}",
       "dynamicColorRules": [
         {
           "id": "c1",
-          "condition": "{{ha_automation_{automation_id}_running}} == true",
-          "colorName": "Blue"
+          "condition": "{{ha_state_{entity_id}}} == on",
+          "colorName": "Yellow"
+        },
+        {
+          "id": "c2",
+          "condition": "{{ha_state_{entity_id}}} == off",
+          "colorName": "Default"
         }
       ]
     }
   ],
-  "driverScript": "module.exports = {\n    msgId: 1,\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to Home Assistant WebSocket...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"authenticating\", \"Authenticating with Access Token...\");\n    },\n    onAction: function(transport, actionId, params) {\n        var domain = params.domain || \"light\";\n        var service = params.service || \"toggle\";\n        var entityId = params.entity_id || \"\";\n        \n        var payload = {\n            id: ++this.msgId,\n            type: \"call_service\",\n            domain: domain,\n            service: service,\n            service_data: {}\n        };\n        if (entityId) {\n            payload.service_data.entity_id = entityId;\n        }\n        transport.sendJSON(payload);\n        return \"Called \" + domain + \".\" + service + (entityId ? \" on \" + entityId : \"\");\n    },\n    onMessage: function(transport, text, bytes) {\n        var msg;\n        try { msg = JSON.parse(text); } catch(e) { return; }\n        \n        if (msg.type === \"auth_required\") {\n            var token = engine.secret(\"access_token\") || engine.secret(\"token\") || \"\";\n            transport.sendJSON({\n                type: \"auth\",\n                access_token: token\n            });\n            return;\n        }\n        \n        if (msg.type === \"auth_ok\") {\n            engine.setStatus(\"connected\", \"Home Assistant Connected\");\n            transport.sendJSON({\n                id: ++this.msgId,\n                type: \"subscribe_events\",\n                event_type: \"state_changed\"\n            });\n            return;\n        }\n        \n        if (msg.type === \"auth_invalid\") {\n            engine.setStatus(\"failed\", \"Authentication Failed: \" + (msg.message || \"Invalid Token\"));\n            return;\n        }\n        \n        if (msg.type === \"event\" && msg.event && msg.event.event_type === \"state_changed\") {\n            var data = msg.event.data;\n            if (data && data.entity_id && data.new_state) {\n                var cleanEntity = data.entity_id.replace(/\\./g, \"_\");\n                engine.setVariable(\"ha_\" + cleanEntity + \"_state\", String(data.new_state.state));\n            }\n        }\n    }\n};"
+  "driverScript": "module.exports = {\n    msgId: 1,\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to Home Assistant WebSocket...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"authenticating\", \"Authenticating with Access Token...\");\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"ha_get_entity_state\" || actionId === \"get_entity_state\" || actionId === \"get_state\") {\n            var entityId = params.entity_id || \"switch.studio_on_air_light\";\n            var cleanEntity = entityId.replace(/\\./g, \"_\");\n            var st = engine.getVariable(\"ha_\" + cleanEntity + \"_state\") || \"unknown\";\n            return \"Entity \" + entityId + \" state: \" + st;\n        }\n        var domain = params.domain || \"light\";\n        var service = params.service || \"toggle\";\n        var entityId = params.entity_id || \"\";\n        \n        var payload = {\n            id: ++this.msgId,\n            type: \"call_service\",\n            domain: domain,\n            service: service,\n            service_data: {}\n        };\n        if (entityId) {\n            payload.service_data.entity_id = entityId;\n        }\n        transport.sendJSON(payload);\n        return \"Called \" + domain + \".\" + service + (entityId ? \" on \" + entityId : \"\");\n    },\n    onMessage: function(transport, text, bytes) {\n        var msg;\n        try { msg = JSON.parse(text); } catch(e) { return; }\n        \n        if (msg.type === \"auth_required\") {\n            var token = engine.secret(\"access_token\") || engine.secret(\"token\") || \"\";\n            transport.sendJSON({\n                type: \"auth\",\n                access_token: token\n            });\n            return;\n        }\n        \n        if (msg.type === \"auth_ok\") {\n            engine.setStatus(\"connected\", \"Home Assistant Connected\");\n            transport.sendJSON({\n                id: ++this.msgId,\n                type: \"subscribe_events\",\n                event_type: \"state_changed\"\n            });\n            return;\n        }\n        \n        if (msg.type === \"auth_invalid\") {\n            engine.setStatus(\"failed\", \"Authentication Failed: \" + (msg.message || \"Invalid Token\"));\n            return;\n        }\n        \n        if (msg.type === \"event\" && msg.event && msg.event.event_type === \"state_changed\") {\n            var data = msg.event.data;\n            if (data && data.entity_id && data.new_state) {\n                var cleanEntity = data.entity_id.replace(/\\./g, \"_\");\n                engine.setVariable(\"ha_\" + cleanEntity + \"_state\", String(data.new_state.state));\n            }\n        }\n    }\n};"
 }

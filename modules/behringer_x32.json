@@ -55,6 +55,13 @@
       "descriptionText": "Whether channel 1 is currently muted",
       "sampleValue": "false",
       "variableType": "Boolean"
+    },
+    {
+      "id": "x32_main_fader",
+      "name": "Main LR Fader Level",
+      "descriptionText": "Current main stereo fader level (0.0 - 1.0)",
+      "sampleValue": "0.75",
+      "variableType": "String"
     }
   ],
   "actions": [
@@ -94,20 +101,7 @@
         }
       ],
       "oscPath": "/ch/{channel_id}/mix/on",
-      "oscValue": "0",
-      "dynamicTitleParsingRule": "MUTE CH {channel_id}",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{x32_ch_{channel_id}_muted}} == true",
-          "colorName": "Red"
-        },
-        {
-          "id": "c2",
-          "condition": "{{x32_ch_{channel_id}_muted}} == false",
-          "colorName": "Green"
-        }
-      ]
+      "oscValue": "0"
     },
     {
       "id": "x32_unmute_ch1",
@@ -145,20 +139,7 @@
         }
       ],
       "oscPath": "/ch/{channel_id}/mix/on",
-      "oscValue": "1",
-      "dynamicTitleParsingRule": "LIVE CH {channel_id}",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{x32_ch_{channel_id}_muted}} == false",
-          "colorName": "Green"
-        },
-        {
-          "id": "c2",
-          "condition": "{{x32_ch_{channel_id}_muted}} == true",
-          "colorName": "Red"
-        }
-      ]
+      "oscValue": "1"
     },
     {
       "id": "x32_main_fader",
@@ -179,16 +160,79 @@
         }
       ],
       "oscPath": "/main/st/mix/fader",
-      "oscValue": "{level}",
-      "dynamicTitleParsingRule": "MAIN LR: {level}",
+      "oscValue": "{level}"
+    },
+    {
+      "id": "x32_get_channel_mute",
+      "title": "X32: Get Channel Mute Status",
+      "subtitle": "Query channel mute state",
+      "descriptionText": "Queries mute status for designated audio input channel on the console with live tally feedback.",
+      "iconName": "speaker.wave.2.fill",
+      "iconColorHex": "#FFB300",
+      "connectionType": "OSC",
+      "defaultPort": "10023",
+      "inputs": [
+        {
+          "id": "channel_id",
+          "label": "Channel Number (01-32)",
+          "type": "Dropdown",
+          "defaultValue": "01",
+          "dropdownChoices": [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "09",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16"
+          ]
+        }
+      ],
+      "oscPath": "get_channel_mute",
+      "oscValue": "{channel_id}",
+      "dynamicTitleParsingRule": "CH {channel_id} MUTE",
       "dynamicColorRules": [
         {
           "id": "c1",
-          "condition": "{{x32_main_fader}} == {level}",
+          "condition": "{{x32_ch_{channel_id}_muted}} == true",
+          "colorName": "Red"
+        },
+        {
+          "id": "c2",
+          "condition": "{{x32_ch_{channel_id}_muted}} == false",
+          "colorName": "Green"
+        }
+      ]
+    },
+    {
+      "id": "x32_get_main_fader",
+      "title": "X32: Get Main LR Fader Level",
+      "subtitle": "Query master output volume",
+      "descriptionText": "Queries master stereo LR fader level with live level display.",
+      "iconName": "waveform",
+      "iconColorHex": "#1976D2",
+      "connectionType": "OSC",
+      "defaultPort": "10023",
+      "oscPath": "get_main_fader",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "MAIN LR: {{x32_main_fader}}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{x32_main_fader}} > 0",
           "colorName": "Blue"
         }
       ]
     }
   ],
-  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to X32/M32 OSC...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"connected\", \"X32 / M32 Ready\");\n        var xremote = engine.osc.encode(\"/xremote\", []);\n        transport.sendBytes(xremote);\n    },\n    onHeartbeat: function(transport) {\n        var xremote = engine.osc.encode(\"/xremote\", []);\n        transport.sendBytes(xremote);\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"x32_mute_ch1\" || actionId === \"mute_channel\") {\n            var ch = String(params.channel_id || \"01\");\n            if (ch.length === 1) ch = \"0\" + ch;\n            var bytes = engine.osc.encode(\"/ch/\" + ch + \"/mix/on\", [0]);\n            transport.sendBytes(bytes);\n            engine.setVariable(\"x32_ch_\" + ch + \"_muted\", \"true\");\n            return \"Muted Channel \" + ch;\n        }\n        if (actionId === \"x32_unmute_ch1\" || actionId === \"unmute_channel\") {\n            var ch = String(params.channel_id || \"01\");\n            if (ch.length === 1) ch = \"0\" + ch;\n            var bytes = engine.osc.encode(\"/ch/\" + ch + \"/mix/on\", [1]);\n            transport.sendBytes(bytes);\n            engine.setVariable(\"x32_ch_\" + ch + \"_muted\", \"false\");\n            return \"Unmuted Channel \" + ch;\n        }\n        if (actionId === \"x32_main_fader\" || actionId === \"main_fader\") {\n            var lvl = parseFloat(params.level || \"0.75\");\n            var bytes = engine.osc.encode(\"/main/st/mix/fader\", [lvl]);\n            transport.sendBytes(bytes);\n            engine.setVariable(\"x32_main_fader\", String(lvl));\n            return \"Set Main LR Fader to \" + lvl;\n        }\n        return \"X32 Action Executed\";\n    },\n    onMessage: function(transport, text, bytes) {\n        var msg = engine.osc.decode(bytes);\n        if (!msg || !msg.address) return;\n        var addr = msg.address;\n        var args = msg.args || [];\n        \n        var chMute = addr.match(/\\/ch\\/(\\d{2})\\/mix\\/on$/);\n        if (chMute && args.length > 0) {\n            var ch = chMute[1];\n            var isOn = (args[0] === 1 || args[0] === true || args[0] === \"1\");\n            engine.setVariable(\"x32_ch_\" + ch + \"_muted\", isOn ? \"false\" : \"true\");\n        }\n        \n        var fader = addr.match(/\\/ch\\/(\\d{2})\\/mix\\/fader$/);\n        if (fader && args.length > 0) {\n            var ch = fader[1];\n            var val = typeof args[0] === \"number\" ? args[0].toFixed(2) : String(args[0]);\n            engine.setVariable(\"x32_ch_\" + ch + \"_fader\", val);\n        }\n        \n        if (addr === \"/main/st/mix/fader\" && args.length > 0) {\n            var val = typeof args[0] === \"number\" ? args[0].toFixed(2) : String(args[0]);\n            engine.setVariable(\"x32_main_fader\", val);\n        }\n    }\n};"
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connecting\", \"Connecting to X32/M32 OSC...\");\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus(\"connected\", \"X32 / M32 Ready\");\n        var xremote = engine.osc.encode(\"/xremote\", []);\n        transport.sendBytes(xremote);\n    },\n    onHeartbeat: function(transport) {\n        var xremote = engine.osc.encode(\"/xremote\", []);\n        transport.sendBytes(xremote);\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === \"x32_get_channel_mute\" || actionId === \"get_channel_mute\" || actionId === \"get_mute\") {\n            var ch = String(params.channel_id || \"01\");\n            if (ch.length === 1) ch = \"0\" + ch;\n            var isMuted = engine.getVariable(\"x32_ch_\" + ch + \"_muted\") || \"false\";\n            return \"Channel \" + ch + \" Mute: \" + isMuted;\n        }\n        if (actionId === \"x32_get_main_fader\" || actionId === \"get_main_fader\" || actionId === \"get_fader\") {\n            var faderVal = engine.getVariable(\"x32_main_fader\") || \"0.75\";\n            return \"Main LR Fader: \" + faderVal;\n        }\n        if (actionId === \"x32_mute_ch1\" || actionId === \"mute_channel\") {\n            var ch = String(params.channel_id || \"01\");\n            if (ch.length === 1) ch = \"0\" + ch;\n            var bytes = engine.osc.encode(\"/ch/\" + ch + \"/mix/on\", [0]);\n            transport.sendBytes(bytes);\n            engine.setVariable(\"x32_ch_\" + ch + \"_muted\", \"true\");\n            return \"Muted Channel \" + ch;\n        }\n        if (actionId === \"x32_unmute_ch1\" || actionId === \"unmute_channel\") {\n            var ch = String(params.channel_id || \"01\");\n            if (ch.length === 1) ch = \"0\" + ch;\n            var bytes = engine.osc.encode(\"/ch/\" + ch + \"/mix/on\", [1]);\n            transport.sendBytes(bytes);\n            engine.setVariable(\"x32_ch_\" + ch + \"_muted\", \"false\");\n            return \"Unmuted Channel \" + ch;\n        }\n        if (actionId === \"x32_main_fader\" || actionId === \"main_fader\") {\n            var lvl = parseFloat(params.level || \"0.75\");\n            var bytes = engine.osc.encode(\"/main/st/mix/fader\", [lvl]);\n            transport.sendBytes(bytes);\n            engine.setVariable(\"x32_main_fader\", String(lvl));\n            return \"Set Main LR Fader to \" + lvl;\n        }\n        return \"X32 Action Executed\";\n    },\n    onMessage: function(transport, text, bytes) {\n        var msg = engine.osc.decode(bytes);\n        if (!msg || !msg.address) return;\n        var addr = msg.address;\n        var args = msg.args || [];\n        \n        var chMute = addr.match(/\\/ch\\/(\\d{2})\\/mix\\/on$/);\n        if (chMute && args.length > 0) {\n            var ch = chMute[1];\n            var isOn = (args[0] === 1 || args[0] === true || args[0] === \"1\");\n            engine.setVariable(\"x32_ch_\" + ch + \"_muted\", isOn ? \"false\" : \"true\");\n        }\n        \n        var fader = addr.match(/\\/ch\\/(\\d{2})\\/mix\\/fader$/);\n        if (fader && args.length > 0) {\n            var ch = fader[1];\n            var val = typeof args[0] === \"number\" ? args[0].toFixed(2) : String(args[0]);\n            engine.setVariable(\"x32_ch_\" + ch + \"_fader\", val);\n        }\n        \n        if (addr === \"/main/st/mix/fader\" && args.length > 0) {\n            var val = typeof args[0] === \"number\" ? args[0].toFixed(2) : String(args[0]);\n            engine.setVariable(\"x32_main_fader\", val);\n        }\n    }\n};"
 }

@@ -18,16 +18,16 @@
       "iconColorHex": "#FFB300",
       "defaultPort": "10023",
       "defaultProtocol": "OSC",
-      "actionCount": 3,
+      "actionCount": 5,
       "file": "modules/behringer_x32.json",
-      "sha256": "7ffbbe9a3093d3b6042b795692e8f88b79c28e12c7d1d9c80e9cfd0101554669"
+      "sha256": "4bf6cdc5b56fc81ec10bd3b48e8cc6f05dd9c560d8077b7a179cf4e7af39d401"
     },
     {
       "id": "blackmagic_atem",
       "name": "Blackmagic ATEM",
       "shortName": "ATEM",
       "manufacturer": "Blackmagic Design",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "author": "Control It Team",
       "subtitle": "Broadcast Video Switcher Control",
       "descriptionText": "Control Cut, Auto transitions, program bus, preview bus, downstream keyers, and macros on ATEM mini, Television Studio, and Constellation switchers via direct UDP persistent connection with real-time tally.",
@@ -35,9 +35,9 @@
       "iconColorHex": "#E65100",
       "defaultPort": "9910",
       "defaultProtocol": "CUSTOM",
-      "actionCount": 6,
+      "actionCount": 12,
       "file": "modules/blackmagic_atem.json",
-      "sha256": "46817a026b48edd2e2218682e49f0edc34d708c1b1c9fd3fe55d5adabe0366c4"
+      "sha256": "4cbf4ca1d91d738549f8f4d91291a5e88518a511093cd12cafe5268225f5c4cd"
     },
     {
       "id": "generic_rest_api",
@@ -52,9 +52,9 @@
       "iconColorHex": "#00897B",
       "defaultPort": "443",
       "defaultProtocol": "HTTP",
-      "actionCount": 1,
+      "actionCount": 2,
       "file": "modules/generic_rest_api.json",
-      "sha256": "5e0855d8876d8f9bc6d06854509012c1ce479121c1ffe60ccbd60def2ad56230"
+      "sha256": "49a1674205705f856e8a92d2d7e9b768e18d1cfeb60a57e188ad25f25cd2de8d"
     },
     {
       "id": "home_assistant",
@@ -69,9 +69,9 @@
       "iconColorHex": "#03A9F4",
       "defaultPort": "8123",
       "defaultProtocol": "HTTP",
-      "actionCount": 2,
+      "actionCount": 3,
       "file": "modules/home_assistant.json",
-      "sha256": "b57e49b297b8dd7161f3bbb3ae1af47ef7e77aad267234453697ea5d0b01f4ac"
+      "sha256": "dcec391b343aae63dce37ec522137d0b05d1e3bdfdd71f3ccd3f2b36058bbbc6"
     },
     {
       "id": "obs_studio",
@@ -86,9 +86,9 @@
       "iconColorHex": "#303F9F",
       "defaultPort": "4455",
       "defaultProtocol": "CUSTOM",
-      "actionCount": 4,
+      "actionCount": 8,
       "file": "modules/obs_studio.json",
-      "sha256": "59b054b13503b0cb9509710543a5e66721466ee90d956bf2f19972bd713df3b0"
+      "sha256": "b304f02561d3a8708b1278c99a9a30cd597baea39285d1eb267033d2dbbf9204"
     },
     {
       "id": "philips_hue",
@@ -103,9 +103,9 @@
       "iconColorHex": "#FF9800",
       "defaultPort": "80",
       "defaultProtocol": "HTTP",
-      "actionCount": 2,
+      "actionCount": 3,
       "file": "modules/philips_hue.json",
-      "sha256": "c0b8fa2d9a1283bccd7f93d5f398219bf6cf89ae58943388e01ffdb28cd83231"
+      "sha256": "36d9232f07535c918aa753d5ca66f7d67d6dcecbf6ec785f494739d32600671c"
     },
     {
       "id": "propresenter_7",
@@ -120,9 +120,9 @@
       "iconColorHex": "#1565C0",
       "defaultPort": "1025",
       "defaultProtocol": "HTTP",
-      "actionCount": 3,
+      "actionCount": 4,
       "file": "modules/propresenter_7.json",
-      "sha256": "1ddd28c9025923f7d458befb0020b8484fd5c5c62df3a138df168d58d0369359"
+      "sha256": "a12f5adf7d991297fb02c97c8b28824634c014554e9fb6ade2b3178422ba272b"
     },
     {
       "id": "spotify_player",
@@ -137,9 +137,9 @@
       "iconColorHex": "#1DB954",
       "defaultPort": "443",
       "defaultProtocol": "HTTP",
-      "actionCount": 2,
+      "actionCount": 3,
       "file": "modules/spotify_player.json",
-      "sha256": "23a2634d8d914ba61fba72376cf053ff47e3cfbee301570b294fe58540d2e88f"
+      "sha256": "909c0b449b86c915544bea4ecafef70b082bbf90689d9ae31b069627f3b556ad"
     },
     {
       "id": "vlc_media_player",
@@ -154,9 +154,9 @@
       "iconColorHex": "#FF9800",
       "defaultPort": "8080",
       "defaultProtocol": "HTTP",
-      "actionCount": 3,
+      "actionCount": 4,
       "file": "modules/vlc_media_player.json",
-      "sha256": "a78824cddc06cd43b708f33721ce6416246d0068e481289b1d07d5d6b308919f"
+      "sha256": "a678d48833a6cf7c05ea0410435cc8cd2c3dce5113f0e7f4617f717e5c9f6709"
     },
     {
       "id": "vmix_switcher",
@@ -171,9 +171,9 @@
       "iconColorHex": "#0D47A1",
       "defaultPort": "8088",
       "defaultProtocol": "HTTP",
-      "actionCount": 3,
+      "actionCount": 4,
       "file": "modules/vmix_switcher.json",
-      "sha256": "b6e7f4f8f9d0efbbcf608321de4d903b81ca115da0a82feda73a819b1d0eff30"
+      "sha256": "4caff4c9efacb385fcfc2da73f74b310533c3eefa0d896c34c2050e13db3afc3"
     },
     {
       "id": "zoom_osc",
@@ -188,9 +188,9 @@
       "iconColorHex": "#2D8CFF",
       "defaultPort": "9090",
       "defaultProtocol": "OSC",
-      "actionCount": 3,
+      "actionCount": 4,
       "file": "modules/zoom_osc.json",
-      "sha256": "aa226bedd5dab8d580602ff6d6fccf21e4b5d10704b954f1941e785ab19c1287"
+      "sha256": "6a723f084161b34e1c96cd9aeefd13a9350ad7d4cbdb959dae5090cb2746b15c"
     }
   ]
 }

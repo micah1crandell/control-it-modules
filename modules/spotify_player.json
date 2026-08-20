@@ -68,7 +68,37 @@
       "connectionType": "HTTP",
       "defaultPort": "443",
       "uri": "/v1/me/player/play",
-      "httpMethod": "PUT",
+      "httpMethod": "PUT"
+    },
+    {
+      "id": "spotify_next_track",
+      "title": "Spotify: Next Track",
+      "subtitle": "Skip to next song",
+      "descriptionText": "Skips playback to the next song in the active playlist queue.",
+      "iconName": "forward.end.fill",
+      "iconColorHex": "#1ED760",
+      "connectionType": "HTTP",
+      "defaultPort": "443",
+      "uri": "/v1/me/player/next",
+      "httpMethod": "POST"
+    },
+    {
+      "id": "spotify_get_playback_state",
+      "title": "Spotify: Get Playback State",
+      "subtitle": "Query track & playing status",
+      "descriptionText": "Fetches current playback state, active track, and playing status via Spotify API.",
+      "iconName": "music.note.list",
+      "iconColorHex": "#1DB954",
+      "connectionType": "HTTP",
+      "defaultPort": "443",
+      "uri": "/v1/me/player",
+      "httpMethod": "GET",
+      "headers": [
+        {
+          "key": "Accept",
+          "value": "application/json"
+        }
+      ],
       "dynamicTitleParsingRule": "SPOTIFY: {{is_playing}}",
       "dynamicColorRules": [
         {
@@ -82,27 +112,7 @@
           "colorName": "Orange"
         }
       ]
-    },
-    {
-      "id": "spotify_next_track",
-      "title": "Spotify: Next Track",
-      "subtitle": "Skip to next song",
-      "descriptionText": "Skips playback to the next song in the active playlist queue.",
-      "iconName": "forward.end.fill",
-      "iconColorHex": "#1ED760",
-      "connectionType": "HTTP",
-      "defaultPort": "443",
-      "uri": "/v1/me/player/next",
-      "httpMethod": "POST",
-      "dynamicTitleParsingRule": "NEXT TRACK",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{is_playing}} == true",
-          "colorName": "Green"
-        }
-      ]
     }
   ],
-  "driverScript": "module.exports = {\n    onAction: function(transport, actionId, params) {\n        var token = engine.secret(\"oauth_token\") || \"\";\n        var headers = token ? { \"Authorization\": \"Bearer \" + token } : {};\n        if (actionId === \"spotify_play_pause\" || actionId === \"play_pause\") {\n            return engine.http.post(\"https://api.spotify.com/v1/me/player/play\", {}, headers).then(function(res) {\n                engine.setVariable(\"spotify_playback_state\", \"playing\");\n                return \"Resumed Playback\";\n            });\n        }\n        if (actionId === \"spotify_next\" || actionId === \"next\") {\n            return engine.http.post(\"https://api.spotify.com/v1/me/player/next\", {}, headers).then(function(res) {\n                return \"Skipped to Next Track\";\n            });\n        }\n        return \"Spotify Action Sent\";\n    }\n};"
+  "driverScript": "module.exports = {\n    onAction: function(transport, actionId, params) {\n        var token = engine.secret(\"oauth_token\") || \"\";\n        var headers = token ? { \"Authorization\": \"Bearer \" + token } : {};\n        if (actionId === \"spotify_get_playback_state\" || actionId === \"get_playback_state\" || actionId === \"get_status\") {\n            return engine.http.get(\"https://api.spotify.com/v1/me/player\", headers).then(function(res) {\n                if (res.json && res.json.item && res.json.item.name) {\n                    engine.setVariable(\"track_name\", res.json.item.name);\n                }\n                if (res.json && res.json.is_playing !== undefined) {\n                    engine.setVariable(\"is_playing\", res.json.is_playing ? \"true\" : \"false\");\n                }\n                return \"Queried Playback State\";\n            });\n        }\n        if (actionId === \"spotify_play_pause\" || actionId === \"play_pause\") {\n            return engine.http.post(\"https://api.spotify.com/v1/me/player/play\", {}, headers).then(function(res) {\n                engine.setVariable(\"spotify_playback_state\", \"playing\");\n                return \"Resumed Playback\";\n            });\n        }\n        if (actionId === \"spotify_next\" || actionId === \"next\") {\n            return engine.http.post(\"https://api.spotify.com/v1/me/player/next\", {}, headers).then(function(res) {\n                return \"Skipped to Next Track\";\n            });\n        }\n        return \"Spotify Action Sent\";\n    }\n};"
 }

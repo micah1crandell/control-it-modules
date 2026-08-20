@@ -91,8 +91,35 @@
           "key": "Content-Type",
           "value": "application/json"
         }
+      ]
+    },
+    {
+      "id": "generic_get_json",
+      "title": "Universal: GET JSON Endpoint",
+      "subtitle": "Query HTTP / JSON endpoint",
+      "descriptionText": "Sends an HTTP GET request to query REST API endpoint status or fetch telemetry.",
+      "iconName": "arrow.down.doc.fill",
+      "iconColorHex": "#00897B",
+      "connectionType": "HTTP",
+      "defaultPort": "443",
+      "inputs": [
+        {
+          "id": "endpoint_path",
+          "label": "Endpoint URI",
+          "type": "Text",
+          "defaultValue": "/api/v1/status",
+          "placeholder": "/api/..."
+        }
       ],
-      "dynamicTitleParsingRule": "{action_event}",
+      "uri": "{endpoint_path}",
+      "httpMethod": "GET",
+      "headers": [
+        {
+          "key": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "dynamicTitleParsingRule": "{endpoint_path}",
       "dynamicColorRules": [
         {
           "id": "c1",

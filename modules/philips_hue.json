@@ -91,14 +91,6 @@
           "key": "Content-Type",
           "value": "application/json"
         }
-      ],
-      "dynamicTitleParsingRule": "TALLY ON AIR",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{hue_light_{light_id}_on}} == true",
-          "colorName": "Red"
-        }
       ]
     },
     {
@@ -127,16 +119,42 @@
           "key": "Content-Type",
           "value": "application/json"
         }
+      ]
+    },
+    {
+      "id": "hue_get_light_state",
+      "title": "Hue: Get Light State",
+      "subtitle": "Query bulb on/off & brightness",
+      "descriptionText": "Fetches current on/off and brightness status for a Philips Hue light.",
+      "iconName": "lightbulb",
+      "iconColorHex": "#FF9800",
+      "connectionType": "HTTP",
+      "defaultPort": "80",
+      "inputs": [
+        {
+          "id": "light_id",
+          "label": "Light ID",
+          "type": "Text",
+          "defaultValue": "1",
+          "placeholder": "1, 2, 3..."
+        }
       ],
-      "dynamicTitleParsingRule": "TALLY STANDBY",
+      "uri": "/api/your_hue_username/lights/{light_id}",
+      "httpMethod": "GET",
+      "dynamicTitleParsingRule": "LIGHT {light_id}",
       "dynamicColorRules": [
         {
           "id": "c1",
           "condition": "{{hue_light_{light_id}_on}} == true",
-          "colorName": "Green"
+          "colorName": "Yellow"
+        },
+        {
+          "id": "c2",
+          "condition": "{{hue_light_{light_id}_on}} == false",
+          "colorName": "Default"
         }
       ]
     }
   ],
-  "driverScript": "module.exports = {\n    onAction: function(transport, actionId, params) {\n        var userToken = engine.secret(\"api_key\") || params.api_key || \"\";\n        var lightId = params.light_id || \"1\";\n        \n        if (actionId === \"hue_toggle_light\" || actionId === \"toggle_light\") {\n            var uri = \"/api/\" + userToken + \"/lights/\" + lightId + \"/state\";\n            var body = { on: params.state === \"on\" || params.state === \"true\" };\n            return engine.http.post(uri, body).then(function(res) {\n                engine.setVariable(\"hue_light_\" + lightId + \"_on\", body.on ? \"true\" : \"false\");\n                return \"Light \" + lightId + (body.on ? \" Turned On\" : \" Turned Off\");\n            });\n        }\n        if (actionId === \"hue_set_brightness\" || actionId === \"brightness\") {\n            var bri = parseInt(params.brightness || \"254\", 10);\n            var uri = \"/api/\" + userToken + \"/lights/\" + lightId + \"/state\";\n            return engine.http.post(uri, { bri: bri }).then(function(res) {\n                engine.setVariable(\"hue_light_\" + lightId + \"_bri\", String(bri));\n                return \"Set Light \" + lightId + \" Brightness to \" + bri;\n            });\n        }\n        return \"Hue Action Sent\";\n    }\n};"
+  "driverScript": "module.exports = {\n    onAction: function(transport, actionId, params) {\n        var userToken = engine.secret(\"api_key\") || params.api_key || \"\";\n        var lightId = params.light_id || \"1\";\n        \n        if (actionId === \"hue_get_light_state\" || actionId === \"get_light_state\" || actionId === \"get_light\") {\n            var uri = \"/api/\" + userToken + \"/lights/\" + lightId;\n            return engine.http.get(uri).then(function(res) {\n                if (res.json && res.json.state) {\n                    engine.setVariable(\"hue_light_\" + lightId + \"_on\", res.json.state.on ? \"true\" : \"false\");\n                    if (res.json.state.bri !== undefined) engine.setVariable(\"hue_light_\" + lightId + \"_bri\", String(res.json.state.bri));\n                }\n                return \"Queried Light \" + lightId + \" State\";\n            });\n        }\n        if (actionId === \"hue_toggle_light\" || actionId === \"toggle_light\") {\n            var uri = \"/api/\" + userToken + \"/lights/\" + lightId + \"/state\";\n            var body = { on: params.state === \"on\" || params.state === \"true\" };\n            return engine.http.post(uri, body).then(function(res) {\n                engine.setVariable(\"hue_light_\" + lightId + \"_on\", body.on ? \"true\" : \"false\");\n                return \"Light \" + lightId + (body.on ? \" Turned On\" : \" Turned Off\");\n            });\n        }\n        if (actionId === \"hue_set_brightness\" || actionId === \"brightness\") {\n            var bri = parseInt(params.brightness || \"254\", 10);\n            var uri = \"/api/\" + userToken + \"/lights/\" + lightId + \"/state\";\n            return engine.http.post(uri, { bri: bri }).then(function(res) {\n                engine.setVariable(\"hue_light_\" + lightId + \"_bri\", String(bri));\n                return \"Set Light \" + lightId + \" Brightness to \" + bri;\n            });\n        }\n        return \"Hue Action Sent\";\n    }\n};"
 }

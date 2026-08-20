@@ -67,7 +67,7 @@
     },
     "defaultProtocol": {
       "type": "string",
-      "enum": ["HTTP", "HTTPS", "TCP", "UDP", "OSC", "MIDI", "CUSTOM", "WEBSOCKET"],
+      "enum": ["HTTP", "HTTPS", "TCP", "UDP", "OSC", "MIDI", "CUSTOM", "WEBSOCKET", "SSH"],
       "description": "Primary communication protocol."
     },
     "defaultHost": {
@@ -90,11 +90,11 @@
       "properties": {
         "protocol": {
           "type": "string",
-          "description": "Driver protocol identifier (e.g. 'CUSTOM_SCRIPT', 'OBS_WEBSOCKET', 'ATEM_UDP')."
+          "description": "Driver protocol identifier (e.g. 'CUSTOM_SCRIPT', 'OBS_WEBSOCKET', 'ATEM_UDP', 'SSH_TERMINAL')."
         },
         "transport": {
           "type": "string",
-          "enum": ["TCP", "TCP_STREAM", "UDP", "UDP_SESSION", "WEBSOCKET", "WS", "WSS", "OBS_WEBSOCKET", "CUSTOM", "HTTP", "HTTPS", "OSC", "MIDI"],
+          "enum": ["TCP", "TCP_STREAM", "UDP", "UDP_SESSION", "WEBSOCKET", "WS", "WSS", "OBS_WEBSOCKET", "CUSTOM", "HTTP", "HTTPS", "OSC", "MIDI", "SSH", "SSH_SESSION", "SSH_TERMINAL"],
           "description": "Low-level transport implementation."
         },
         "defaultPort": {
@@ -237,6 +237,28 @@
           "tcpPayload": { "type": "string" },
           "udpPayload": { "type": "string" },
           "customScript": { "type": "string" },
+          "dynamicTitleParsingRule": { "type": "string", "description": "Template string for live button title updates (e.g. 'CAM {{atem_program_input}}')" },
+          "participatesInPolling": { "type": "boolean", "description": "Whether this action participates in background status polling" },
+          "pollingIntervalSeconds": { "type": "number", "description": "Custom polling interval in seconds" },
+          "dynamicColorRules": {
+            "type": "array",
+            "description": "State rules that dynamically alter button background color, icon, and tally border",
+            "items": {
+              "type": "object",
+              "required": ["condition", "colorName"],
+              "properties": {
+                "id": { "type": "string" },
+                "condition": { "type": "string" },
+                "colorName": { "type": "string" },
+                "customColorHex": { "type": "string" },
+                "actionSourceTitle": { "type": "string" },
+                "iconName": { "type": "string" },
+                "tallyStyle": { "type": "string", "enum": ["solid", "pulse"] },
+                "isEnabled": { "type": "boolean" },
+                "label": { "type": "string" }
+              }
+            }
+          },
           "inputs": {
             "type": "array",
             "items": {

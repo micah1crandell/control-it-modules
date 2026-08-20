@@ -269,11 +269,36 @@ module.exports = {
 3. **Heartbeats:** If the protocol requires keep-alives to prevent disconnects, define `heartbeatIntervalMs` and implement `onHeartbeat` rather than creating manual `setInterval` loops.
 4. **Secrets:** Never hardcode passwords. Access user-configured secrets securely via `engine.secret("password_field")` where `password_field` is defined as a secure connection config input.
 
-## 11. Debugging
+## 12. Live Feedback Rules & Action Telemetry
 
-1. **Logging:** Use `console.log()` or `engine.log()`. These output directly to the "Action Console" and driver log viewers inside the Control-It app.
-2. **Errors:** Uncaught exceptions in your script will be logged as `[Module Driver JS Error]`. Catch `JSON.parse` errors explicitly in `onMessage`.
-3. **State Updates:** Use `engine.setStatus("failed", "Wrong password")` if you detect authentication issues, so the user knows exactly why the connection isn't working.
+Module actions can include built-in live feedback rules in their JSON definitions so that buttons created from the action automatically react to device state:
+
+```json
+{
+  "id": "switch_cam_1",
+  "title": "Camera 1",
+  "dynamicTitleParsingRule": "CAM {{atem_program_input}}",
+  "dynamicColorRules": [
+    {
+      "condition": "{{atem_program_input}} == 1",
+      "colorName": "Red",
+      "iconName": "video.fill",
+      "tallyStyle": "pulse",
+      "label": "Program / On-Air"
+    },
+    {
+      "condition": "{{atem_preview_input}} == 1",
+      "colorName": "Green",
+      "iconName": "video.fill",
+      "tallyStyle": "solid",
+      "label": "Preview / Standby"
+    }
+  ]
+}
+```
+
+When users add this action to a multistep button or grid tile, Control-It automatically registers these rules and subscribes to `engine.setVariable()` updates.
 
 ---
-_SDK Version 1.0 — Generated for Control-It ModuleRuntimeEnvironment_
+_SDK Version 2.2 — Generated for Control-It ModuleRuntimeEnvironment_
+

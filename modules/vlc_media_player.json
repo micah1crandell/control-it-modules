@@ -70,6 +70,42 @@
       "connectionType": "HTTP",
       "defaultPort": "8080",
       "uri": "/requests/status.xml?command=pl_pause",
+      "httpMethod": "GET"
+    },
+    {
+      "id": "vlc_stop",
+      "title": "VLC: Stop Playback",
+      "subtitle": "Stop and reset video",
+      "descriptionText": "Stops active playback in VLC.",
+      "iconName": "stop.fill",
+      "iconColorHex": "#F57C00",
+      "connectionType": "HTTP",
+      "defaultPort": "8080",
+      "uri": "/requests/status.xml?command=pl_stop",
+      "httpMethod": "GET"
+    },
+    {
+      "id": "vlc_next",
+      "title": "VLC: Next Video / Item",
+      "subtitle": "Skip to next playlist item",
+      "descriptionText": "Advances VLC playlist to next video clip.",
+      "iconName": "forward.end.fill",
+      "iconColorHex": "#EF6C00",
+      "connectionType": "HTTP",
+      "defaultPort": "8080",
+      "uri": "/requests/status.xml?command=pl_next",
+      "httpMethod": "GET"
+    },
+    {
+      "id": "vlc_get_status",
+      "title": "VLC: Get Status",
+      "subtitle": "Query playback state & volume",
+      "descriptionText": "Fetches current playback state (playing, paused, stopped) and volume from VLC Media Player.",
+      "iconName": "play.tv",
+      "iconColorHex": "#FF9800",
+      "connectionType": "HTTP",
+      "defaultPort": "8080",
+      "uri": "/requests/status.xml",
       "httpMethod": "GET",
       "dynamicTitleParsingRule": "VLC: {{vlc_state}}",
       "dynamicColorRules": [
@@ -82,49 +118,14 @@
           "id": "c2",
           "condition": "{{vlc_state}} == paused",
           "colorName": "Orange"
-        }
-      ]
-    },
-    {
-      "id": "vlc_stop",
-      "title": "VLC: Stop Playback",
-      "subtitle": "Stop and reset video",
-      "descriptionText": "Stops active playback in VLC.",
-      "iconName": "stop.fill",
-      "iconColorHex": "#F57C00",
-      "connectionType": "HTTP",
-      "defaultPort": "8080",
-      "uri": "/requests/status.xml?command=pl_stop",
-      "httpMethod": "GET",
-      "dynamicTitleParsingRule": "VLC STOP",
-      "dynamicColorRules": [
+        },
         {
-          "id": "c1",
+          "id": "c3",
           "condition": "{{vlc_state}} == stopped",
           "colorName": "Red"
         }
       ]
-    },
-    {
-      "id": "vlc_next",
-      "title": "VLC: Next Video / Item",
-      "subtitle": "Skip to next playlist item",
-      "descriptionText": "Advances VLC playlist to next video clip.",
-      "iconName": "forward.end.fill",
-      "iconColorHex": "#EF6C00",
-      "connectionType": "HTTP",
-      "defaultPort": "8080",
-      "uri": "/requests/status.xml?command=pl_next",
-      "httpMethod": "GET",
-      "dynamicTitleParsingRule": "VLC NEXT",
-      "dynamicColorRules": [
-        {
-          "id": "c1",
-          "condition": "{{vlc_state}} == playing",
-          "colorName": "Green"
-        }
-      ]
     }
   ],
-  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connected\", \"VLC Media Player HTTP Ready\");\n    },\n    onAction: function(transport, actionId, params) {\n        var password = engine.secret(\"password\") || \"\";\n        var authHeader = password ? { \"Authorization\": \"Basic \" + engine.crypto.base64Encode(\":\" + password) } : {};\n        \n        if (actionId === \"vlc_play_pause\" || actionId === \"play_pause\") {\n            return engine.http.get(\"/requests/status.json?command=pl_pause\", authHeader).then(function(res) {\n                if (res.json && res.json.state) {\n                    engine.setVariable(\"vlc_state\", res.json.state);\n                }\n                return \"Toggled Play/Pause\";\n            });\n        }\n        if (actionId === \"vlc_stop\" || actionId === \"stop\") {\n            return engine.http.get(\"/requests/status.json?command=pl_stop\", authHeader).then(function(res) {\n                engine.setVariable(\"vlc_state\", \"stopped\");\n                return \"Stopped Playback\";\n            });\n        }\n        if (actionId === \"vlc_volume\" || actionId === \"set_volume\") {\n            var val = params.volume || \"256\";\n            return engine.http.get(\"/requests/status.json?command=volume&val=\" + val, authHeader).then(function(res) {\n                engine.setVariable(\"vlc_volume\", String(val));\n                return \"Set Volume to \" + val;\n            });\n        }\n        return \"VLC Action Executed\";\n    }\n};"
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus(\"connected\", \"VLC Media Player HTTP Ready\");\n    },\n    onAction: function(transport, actionId, params) {\n        var password = engine.secret(\"password\") || \"\";\n        var authHeader = password ? { \"Authorization\": \"Basic \" + engine.crypto.base64Encode(\":\" + password) } : {};\n        \n        if (actionId === \"vlc_get_status\" || actionId === \"get_status\") {\n            return engine.http.get(\"/requests/status.json\", authHeader).then(function(res) {\n                if (res.json && res.json.state) {\n                    engine.setVariable(\"vlc_state\", res.json.state);\n                }\n                return \"Queried VLC Status\";\n            });\n        }\n        if (actionId === \"vlc_play_pause\" || actionId === \"play_pause\") {\n            return engine.http.get(\"/requests/status.json?command=pl_pause\", authHeader).then(function(res) {\n                if (res.json && res.json.state) {\n                    engine.setVariable(\"vlc_state\", res.json.state);\n                }\n                return \"Toggled Play/Pause\";\n            });\n        }\n        if (actionId === \"vlc_stop\" || actionId === \"stop\") {\n            return engine.http.get(\"/requests/status.json?command=pl_stop\", authHeader).then(function(res) {\n                engine.setVariable(\"vlc_state\", \"stopped\");\n                return \"Stopped Playback\";\n            });\n        }\n        if (actionId === \"vlc_volume\" || actionId === \"set_volume\") {\n            var val = params.volume || \"256\";\n            return engine.http.get(\"/requests/status.json?command=volume&val=\" + val, authHeader).then(function(res) {\n                engine.setVariable(\"vlc_volume\", String(val));\n                return \"Set Volume to \" + val;\n            });\n        }\n        return \"VLC Action Executed\";\n    }\n};"
 }
