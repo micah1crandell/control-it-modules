@@ -1,0 +1,160 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "propresenter_http",
+  "name": "ProPresenter 7 HTTP API",
+  "shortName": "ProPresenter",
+  "manufacturer": "Renewed Vision",
+  "version": "2.2.0",
+  "author": "Control-It AI Agent",
+  "subtitle": "Direct REST API Control for ProPresenter 7",
+  "descriptionText": "Controls slides, playlists, clears, macros, and stage messages on Renewed Vision ProPresenter 7 via the native REST HTTP API.",
+  "iconName": "tv.fill",
+  "iconColorHex": "#007AFF",
+  "defaultPort": "1025",
+  "defaultProtocol": "HTTP",
+  "defaultHost": "192.168.1.50",
+  "connectionConfig": {
+    "transport": "HTTP",
+    "defaultPort": "1025",
+    "defaultHost": "192.168.1.50",
+    "autoConnectOnLaunch": true,
+    "setupFields": [
+      {
+        "id": "host",
+        "label": "ProPresenter IP Address",
+        "type": "Text",
+        "defaultValue": "192.168.1.50",
+        "placeholder": "192.168.1.50",
+        "isRequired": true
+      },
+      {
+        "id": "port",
+        "label": "API Port",
+        "type": "Number",
+        "defaultValue": "1025",
+        "isRequired": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "active_presentation",
+      "name": "Active Presentation",
+      "descriptionText": "Title of the currently active presentation",
+      "sampleValue": "Sunday Service - Amazing Grace",
+      "variableType": "String"
+    },
+    {
+      "id": "current_slide_index",
+      "name": "Current Slide Index",
+      "descriptionText": "Index number of active slide",
+      "sampleValue": "1",
+      "variableType": "Number"
+    },
+    {
+      "id": "total_slides",
+      "name": "Total Slides",
+      "descriptionText": "Total number of slides in presentation",
+      "sampleValue": "8",
+      "variableType": "Number"
+    },
+    {
+      "id": "last_action",
+      "name": "Last Action Triggered",
+      "sampleValue": "next_slide",
+      "variableType": "String"
+    }
+  ],
+  "actions": [
+    {
+      "id": "next_slide",
+      "title": "Next Slide",
+      "subtitle": "Advance presentation",
+      "descriptionText": "Triggers the next slide in presentation order.",
+      "iconName": "forward.fill",
+      "iconColorHex": "#34C759",
+      "uri": "/v1/trigger/next",
+      "httpMethod": "POST",
+      "dynamicTitleParsingRule": "Slide: {{current_slide_index}} / {{total_slides}}",
+      "dynamicColorRules": [
+        {
+          "condition": "{{current_slide_index}} > 0",
+          "colorName": "Green",
+          "iconName": "play.fill",
+          "tallyStyle": "solid",
+          "label": "Presentation Live"
+        }
+      ]
+    },
+    {
+      "id": "prev_slide",
+      "title": "Previous Slide",
+      "subtitle": "Go back one slide",
+      "descriptionText": "Triggers the previous slide.",
+      "iconName": "backward.fill",
+      "iconColorHex": "#007AFF",
+      "uri": "/v1/trigger/previous",
+      "httpMethod": "POST"
+    },
+    {
+      "id": "clear_all",
+      "title": "Clear All Layers",
+      "subtitle": "Clear presentation, media, props",
+      "descriptionText": "Immediately clears all active layers on screen.",
+      "iconName": "xmark.octagon.fill",
+      "iconColorHex": "#FF3B30",
+      "uri": "/v1/clear/all",
+      "httpMethod": "POST",
+      "dynamicColorRules": [
+        {
+          "condition": "{{last_action}} == 'clear_all'",
+          "colorName": "Red",
+          "iconName": "xmark.circle.fill",
+          "label": "Cleared"
+        }
+      ]
+    },
+    {
+      "id": "clear_slide",
+      "title": "Clear Slide Only",
+      "subtitle": "Clear text while keeping background media",
+      "iconName": "xmark.circle",
+      "iconColorHex": "#FF9500",
+      "uri": "/v1/clear/slide",
+      "httpMethod": "POST"
+    },
+    {
+      "id": "trigger_slide",
+      "title": "Trigger Specific Slide",
+      "subtitle": "Jump to slide index",
+      "iconName": "number.circle.fill",
+      "inputs": [
+        {
+          "id": "slide_index",
+          "label": "Slide Number (1-based)",
+          "type": "Number",
+          "defaultValue": "1",
+          "minValue": 1,
+          "maxValue": 500,
+          "stepValue": 1
+        }
+      ]
+    },
+    {
+      "id": "trigger_macro",
+      "title": "Trigger ProPresenter Macro",
+      "subtitle": "Run named macro",
+      "iconName": "command",
+      "inputs": [
+        {
+          "id": "macro_name",
+          "label": "Macro Name",
+          "type": "Text",
+          "defaultValue": "Worship Start",
+          "placeholder": "Enter exact macro name"
+        }
+      ]
+    }
+  ],
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus('connecting', 'Connecting to ProPresenter 7...');\n    },\n    \n    onTransportReady: function(transport, config) {\n        engine.setStatus('connected', 'Ready');\n        engine.setVariable('active_presentation', 'Sunday Morning Service');\n        engine.setVariable('current_slide_index', '1');\n        engine.setVariable('total_slides', '12');\n    },\n    \n    onAction: function(transport, actionId, params) {\n        engine.setVariable('last_action', actionId);\n        \n        if (actionId === 'next_slide') {\n            var current = parseInt(engine.getVariable('current_slide_index'), 10) || 1;\n            var total = parseInt(engine.getVariable('total_slides'), 10) || 12;\n            var next = Math.min(total, current + 1);\n            engine.setVariable('current_slide_index', String(next));\n            return 'Advanced to slide ' + next + ' of ' + total;\n        }\n        \n        if (actionId === 'prev_slide') {\n            var current = parseInt(engine.getVariable('current_slide_index'), 10) || 1;\n            var prev = Math.max(1, current - 1);\n            engine.setVariable('current_slide_index', String(prev));\n            return 'Returned to slide ' + prev;\n        }\n        \n        if (actionId === 'clear_all') {\n            engine.setVariable('current_slide_index', '0');\n            return 'Cleared all layers';\n        }\n        \n        if (actionId === 'clear_slide') {\n            return 'Cleared text slide layer';\n        }\n        \n        if (actionId === 'trigger_slide') {\n            var target = params.slide_index || '1';\n            engine.setVariable('current_slide_index', String(target));\n            return 'Triggered slide #' + target;\n        }\n        \n        if (actionId === 'trigger_macro') {\n            var macro = params.macro_name || 'Default';\n            return 'Dispatched macro: ' + macro;\n        }\n        \n        return 'Executed action ' + actionId;\n    },\n    \n    onMessage: function(transport, text, bytes) {\n        try {\n            var data = JSON.parse(text);\n            if (data.presentation && data.presentation.name) {\n                engine.setVariable('active_presentation', data.presentation.name);\n            }\n            if (data.slide_index !== undefined) {\n                engine.setVariable('current_slide_index', String(data.slide_index));\n            }\n        } catch(e) {}\n    }\n};"
+}

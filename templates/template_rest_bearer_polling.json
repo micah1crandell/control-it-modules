@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "template_rest_bearer_polling",
+  "name": "Template: REST API with Polling",
+  "shortName": "REST API",
+  "manufacturer": "Starter Template",
+  "version": "1.0.0",
+  "author": "Control-It Team",
+  "subtitle": "Starter template for HTTP REST APIs with authentication tokens",
+  "descriptionText": "Use this starter template for cloud-connected equipment, smart hubs, and HTTP-based media players.",
+  "iconName": "globe",
+  "iconColorHex": "#FF9500",
+  "defaultPort": "80",
+  "defaultProtocol": "HTTP",
+  "connectionConfig": {
+    "transport": "HTTP",
+    "defaultPort": "80",
+    "autoConnectOnLaunch": true,
+    "setupFields": [
+      {
+        "id": "api_token",
+        "label": "Bearer API Token",
+        "type": "Text",
+        "isRequired": true,
+        "isSecret": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "playback_status",
+      "name": "Playback Status",
+      "sampleValue": "playing",
+      "variableType": "String"
+    }
+  ],
+  "actions": [
+    {
+      "id": "play",
+      "title": "Play",
+      "iconName": "play.fill",
+      "uri": "/api/v1/playback/play",
+      "httpMethod": "POST"
+    },
+    {
+      "id": "pause",
+      "title": "Pause",
+      "iconName": "pause.fill",
+      "uri": "/api/v1/playback/pause",
+      "httpMethod": "POST"
+    }
+  ],
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus('connected', 'Ready');\n    },\n    onAction: function(transport, actionId, params) {\n        return 'Dispatched ' + actionId;\n    }\n};"
+}

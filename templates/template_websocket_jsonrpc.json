@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "template_websocket_jsonrpc",
+  "name": "Template: WebSocket JSON-RPC Device",
+  "shortName": "WS JSON",
+  "manufacturer": "Starter Template",
+  "version": "1.0.0",
+  "author": "Control-It Team",
+  "subtitle": "Starter template for full-duplex WebSocket APIs with JSON payloads",
+  "descriptionText": "Use this starter template for streaming software, media servers, and modern web socket controllers.",
+  "iconName": "antenna.radiowaves.left.and.right",
+  "iconColorHex": "#AF52DE",
+  "defaultPort": "8080",
+  "defaultProtocol": "WEBSOCKET",
+  "connectionConfig": {
+    "transport": "WEBSOCKET",
+    "framing": "raw",
+    "defaultPort": "8080",
+    "urlPath": "/ws",
+    "autoConnectOnLaunch": true
+  },
+  "variables": [
+    {
+      "id": "connection_state",
+      "name": "Connection State",
+      "sampleValue": "ready",
+      "variableType": "String"
+    }
+  ],
+  "actions": [
+    {
+      "id": "call_method",
+      "title": "Call Remote Method",
+      "iconName": "play.fill",
+      "inputs": [
+        {
+          "id": "method",
+          "label": "RPC Method Name",
+          "type": "Text",
+          "defaultValue": "playback.play"
+        }
+      ]
+    }
+  ],
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus('connecting', 'Connecting WebSocket...');\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus('connected', 'Connected');\n        engine.setVariable('connection_state', 'ready');\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === 'call_method') {\n            transport.sendJSON({\n                jsonrpc: '2.0',\n                method: params.method,\n                id: Date.now()\n            });\n            return 'Dispatched ' + params.method;\n        }\n        return 'Unknown action';\n    },\n    onMessage: function(transport, text, bytes) {\n        try {\n            var msg = JSON.parse(text);\n            engine.log('WS << ' + JSON.stringify(msg));\n        } catch(e) {}\n    },\n    onDisconnect: function() {\n        engine.setStatus('disconnected', 'WS Closed');\n        engine.setVariable('connection_state', 'closed');\n    }\n};"
+}

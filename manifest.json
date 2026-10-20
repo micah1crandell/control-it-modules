@@ -125,6 +125,23 @@
       "sha256": "a12f5adf7d991297fb02c97c8b28824634c014554e9fb6ade2b3178422ba272b"
     },
     {
+      "id": "propresenter_http",
+      "name": "ProPresenter 7 HTTP API",
+      "shortName": "ProPresenter",
+      "manufacturer": "Renewed Vision",
+      "version": "2.2.0",
+      "author": "Control-It AI Agent",
+      "subtitle": "Direct REST API Control for ProPresenter 7",
+      "descriptionText": "Controls slides, playlists, clears, macros, and stage messages on Renewed Vision ProPresenter 7 via the native REST HTTP API.",
+      "iconName": "tv.fill",
+      "iconColorHex": "#007AFF",
+      "defaultPort": "1025",
+      "defaultProtocol": "HTTP",
+      "actionCount": 6,
+      "file": "modules/propresenter_http.json",
+      "sha256": "643ad9db37ed5913a96d09c1e1273ac21e1446bc2fcb67d19e23b796bc4b7d20"
+    },
+    {
       "id": "spotify_player",
       "name": "Spotify",
       "shortName": "Spotify",

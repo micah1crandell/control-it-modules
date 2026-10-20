@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "template_udp_binary",
+  "name": "Template: Binary UDP Device",
+  "shortName": "UDP Binary",
+  "manufacturer": "Starter Template",
+  "version": "1.0.0",
+  "author": "Control-It Team",
+  "subtitle": "Starter template for binary UDP packet packing and unpacking",
+  "descriptionText": "Use this starter template for cameras, switchers, and lighting fixtures communicating via packed binary datagrams.",
+  "iconName": "cpu",
+  "iconColorHex": "#007AFF",
+  "defaultPort": "5000",
+  "defaultProtocol": "UDP_SESSION",
+  "connectionConfig": {
+    "transport": "UDP_SESSION",
+    "framing": "raw",
+    "defaultPort": "5000",
+    "autoConnectOnLaunch": true
+  },
+  "variables": [
+    {
+      "id": "tally_program",
+      "name": "Program Tally",
+      "descriptionText": "Camera active on program output",
+      "sampleValue": "false",
+      "variableType": "Boolean"
+    }
+  ],
+  "actions": [
+    {
+      "id": "send_command",
+      "title": "Trigger Binary Action",
+      "iconName": "bolt.fill",
+      "inputs": [
+        {
+          "id": "command_id",
+          "label": "Command Opcode",
+          "type": "Number",
+          "defaultValue": "1"
+        }
+      ],
+      "dynamicColorRules": [
+        {
+          "condition": "{{tally_program}} == 'true'",
+          "colorName": "Red",
+          "tallyStyle": "solid",
+          "label": "On Air"
+        }
+      ]
+    }
+  ],
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus('connecting', 'Starting UDP...');\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus('connected', 'Ready');\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === 'send_command') {\n            var op = parseInt(params.command_id, 10) || 1;\n            // Header 0xAA 0x55, Opcode, Length 0x00, Checksum\n            var payload = [0xAA, 0x55, op & 0xFF, 0x00];\n            var csum = engine.checksum.sum8(payload);\n            payload.push(csum);\n            transport.sendBytes(payload);\n            return 'Sent binary command ' + op;\n        }\n        return 'Unknown action';\n    },\n    onMessage: function(transport, text, bytes) {\n        if (bytes.length >= 4 && bytes[0] === 0xAA && bytes[1] === 0x55) {\n            var statusByte = bytes[2];\n            engine.setVariable('tally_program', (statusByte & 0x01) ? 'true' : 'false');\n        }\n    }\n};"
+}

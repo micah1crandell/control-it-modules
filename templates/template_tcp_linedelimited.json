@@ -1,0 +1,98 @@
+{
+  "$schema": "https://raw.githubusercontent.com/micah1crandell/control-it-modules/main/schemas/module.schema.json",
+  "id": "template_tcp_linedelimited",
+  "name": "Template: TCP Line-Delimited Device",
+  "shortName": "TCP Line",
+  "manufacturer": "Starter Template",
+  "version": "1.0.0",
+  "author": "Control-It Team",
+  "subtitle": "Starter template for ASCII commands with CRLF framing",
+  "descriptionText": "Use this starter template for projectors, matrix switchers, and processors communicating over TCP with line breaks.",
+  "iconName": "network",
+  "iconColorHex": "#34C759",
+  "defaultPort": "4001",
+  "defaultProtocol": "TCP",
+  "connectionConfig": {
+    "transport": "TCP",
+    "framing": "crlf",
+    "defaultPort": "4001",
+    "autoConnectOnLaunch": true,
+    "heartbeatIntervalMs": 15000,
+    "setupFields": [
+      {
+        "id": "device_id",
+        "label": "Device Unit ID",
+        "type": "Text",
+        "defaultValue": "1",
+        "isRequired": true
+      }
+    ]
+  },
+  "variables": [
+    {
+      "id": "power_state",
+      "name": "Power State",
+      "descriptionText": "Current device power state (on or standby)",
+      "sampleValue": "on",
+      "variableType": "String"
+    },
+    {
+      "id": "active_input",
+      "name": "Active Input",
+      "descriptionText": "Currently routed video or audio input",
+      "sampleValue": "1",
+      "variableType": "Number"
+    }
+  ],
+  "actions": [
+    {
+      "id": "set_power",
+      "title": "Set Power State",
+      "subtitle": "Turn power on or standby",
+      "iconName": "power",
+      "inputs": [
+        {
+          "id": "state",
+          "label": "Power State",
+          "type": "Dropdown",
+          "defaultValue": "on",
+          "dropdownChoices": ["on", "standby"]
+        }
+      ],
+      "dynamicTitleParsingRule": "PWR: {{power_state}}",
+      "dynamicColorRules": [
+        {
+          "condition": "{{power_state}} == 'on'",
+          "colorName": "Green",
+          "iconName": "power",
+          "tallyStyle": "solid",
+          "label": "Unit On"
+        },
+        {
+          "condition": "{{power_state}} == 'standby'",
+          "colorName": "Orange",
+          "iconName": "power",
+          "label": "Standby"
+        }
+      ]
+    },
+    {
+      "id": "select_input",
+      "title": "Select Input Channel",
+      "subtitle": "Switch active source",
+      "iconName": "arrow.triangle.branch",
+      "inputs": [
+        {
+          "id": "channel",
+          "label": "Input Number",
+          "type": "Number",
+          "defaultValue": "1",
+          "minValue": 1,
+          "maxValue": 16,
+          "stepValue": 1
+        }
+      ]
+    }
+  ],
+  "driverScript": "module.exports = {\n    onConnect: function(transport, config) {\n        engine.setStatus('connecting', 'Connecting...');\n    },\n    onTransportReady: function(transport, config) {\n        engine.setStatus('connected', 'Ready');\n        // Query initial state\n        transport.send('STATUS?\\r\\n');\n    },\n    onAction: function(transport, actionId, params) {\n        if (actionId === 'set_power') {\n            var cmd = params.state === 'on' ? 'POWER ON\\r\\n' : 'POWER OFF\\r\\n';\n            transport.send(cmd);\n            return 'Sent ' + params.state;\n        } else if (actionId === 'select_input') {\n            transport.send('INPUT ' + params.channel + '\\r\\n');\n            return 'Switched to input ' + params.channel;\n        }\n        return 'Unknown action';\n    },\n    onMessage: function(transport, text, bytes) {\n        text = text.trim();\n        if (text.startsWith('POWER=')) {\n            var val = text.substring(6).toLowerCase();\n            engine.setVariable('power_state', val);\n        } else if (text.startsWith('INPUT=')) {\n            var inp = text.substring(6);\n            engine.setVariable('active_input', inp);\n        }\n    },\n    onHeartbeat: function(transport) {\n        transport.send('PING\\r\\n');\n    },\n    onDisconnect: function() {\n        engine.setStatus('disconnected', 'Disconnected');\n    }\n};"
+}
