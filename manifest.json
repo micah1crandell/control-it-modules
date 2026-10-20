@@ -27,7 +27,7 @@
       "name": "Blackmagic ATEM",
       "shortName": "ATEM",
       "manufacturer": "Blackmagic Design",
-      "version": "2.2.0",
+      "version": "2.3.0",
       "author": "Control It Team",
       "subtitle": "Broadcast Video Switcher Control",
       "descriptionText": "Control Cut, Auto transitions, program bus, preview bus, downstream keyers, and macros on ATEM mini, Television Studio, and Constellation switchers via direct UDP persistent connection with real-time tally.",
@@ -35,9 +35,9 @@
       "iconColorHex": "#E65100",
       "defaultPort": "9910",
       "defaultProtocol": "CUSTOM",
-      "actionCount": 12,
+      "actionCount": 15,
       "file": "modules/blackmagic_atem.json",
-      "sha256": "4cbf4ca1d91d738549f8f4d91291a5e88518a511093cd12cafe5268225f5c4cd"
+      "sha256": "9d300d335df0ea6de369ed7c2dc8c3ebdda3427f8f82ce0408812626c44c29fe"
     },
     {
       "id": "generic_rest_api",

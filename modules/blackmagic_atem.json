@@ -4,7 +4,7 @@
   "name": "Blackmagic ATEM",
   "shortName": "ATEM",
   "manufacturer": "Blackmagic Design",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "author": "Control It Team",
   "subtitle": "Broadcast Video Switcher Control",
   "descriptionText": "Control Cut, Auto transitions, program bus, preview bus, downstream keyers, and macros on ATEM mini, Television Studio, and Constellation switchers via direct UDP persistent connection with real-time tally.",
@@ -38,7 +38,7 @@
         "label": "ATEM Switcher IP",
         "type": "Text",
         "defaultValue": "192.168.1.100",
-        "placeholder": "e.g. 192.168.1.100",
+        "placeholder": "e.g. 192.168.1.52",
         "helpText": "Enter the IP address of your ATEM Switcher on the local network.",
         "isRequired": true
       },
@@ -66,11 +66,11 @@
         "type": "Dropdown",
         "defaultValue": "1",
         "dropdownChoices": ["1", "2", "3", "4"],
-        "helpText": "Select the target M/E bus (M/E 1 for ATEM Mini and single-bus switchers)."
+        "helpText": "Select default target M/E bus (M/E 1 for ATEM Mini and single-bus switchers)."
       }
     ]
   },
-  "driverScript": "module.exports = {\n  sessionId: 0,\n  remotePacketId: 0,\n  localPacketId: 0,\n  connected: false,\n  lastReceivedTime: 0,\n  config: {},\n  handshakeInterval: null,\n\n  onConnect: function(transport, config) {\n    this.sessionId = 0;\n    this.remotePacketId = 0;\n    this.localPacketId = 0;\n    this.connected = false;\n    this.lastReceivedTime = Date.now();\n    this.config = config || {};\n    var handshakeTimeout = (parseFloat(this.config.handshakeTimeoutSeconds) || 20.0) * 1000;\n    var startTime = Date.now();\n    engine.setStatus('connecting', 'Connecting to ATEM...');\n\n    var self = this;\n    this.sendSyn(transport);\n\n    if (this.handshakeInterval) clearInterval(this.handshakeInterval);\n    this.handshakeInterval = setInterval(function() {\n      if (!self.connected) {\n        if (Date.now() - startTime > handshakeTimeout) {\n          clearInterval(self.handshakeInterval);\n          self.handshakeInterval = null;\n          engine.setStatus('failed', 'Handshake timed out after ' + (handshakeTimeout / 1000) + 's');\n          return;\n        }\n        self.sendSyn(transport);\n      } else {\n        clearInterval(self.handshakeInterval);\n        self.handshakeInterval = null;\n      }\n    }, 1000);\n  },\n\n  sendSyn: function(transport) {\n    var synPacket = [\n      0x10, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n      0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,\n      0x00, 0x00, 0x00, 0x00\n    ];\n    transport.sendBytes(synPacket);\n  },\n\n  onMessage: function(transport, messageText, messageBytes) {\n    if (!messageBytes || messageBytes.length < 12) return;\n    this.lastReceivedTime = Date.now();\n\n    var flagByte = messageBytes[0];\n    var len = ((flagByte & 0x07) << 8) | messageBytes[1];\n    var incSessionId = (messageBytes[2] << 8) | messageBytes[3];\n    var incRemoteAckId = (messageBytes[4] << 8) | messageBytes[5];\n    var incSwitcherPacketId = (messageBytes[10] << 8) | messageBytes[11];\n\n    // ConnectAck from ATEM (bit 4: 0x10)\n    if ((flagByte & 0x10) !== 0) {\n      if (messageBytes.length >= 16) {\n        this.sessionId = ((messageBytes[14] | 0x80) << 8) | messageBytes[15];\n      } else {\n        this.sessionId = incSessionId || 0x8000;\n      }\n      this.remotePacketId = 0;\n      this.localPacketId = 0;\n      this.connected = true;\n      this.lastReceivedTime = Date.now();\n      if (this.handshakeInterval) {\n        clearInterval(this.handshakeInterval);\n        this.handshakeInterval = null;\n      }\n      engine.setStatus('connected', 'Connected to ATEM');\n      this.sendAck(transport, 0);\n      return;\n    }\n\n    if (incSessionId !== 0) {\n      this.sessionId = incSessionId;\n    }\n\n    if (incSwitcherPacketId > this.remotePacketId || (this.remotePacketId > 60000 && incSwitcherPacketId < 1000)) {\n      this.remotePacketId = incSwitcherPacketId;\n    }\n\n    // Process subcommands\n    if (len > 12 && messageBytes.length >= len) {\n      var offset = 12;\n      while (offset + 8 <= len) {\n        var cmdLen = (messageBytes[offset] << 8) | messageBytes[offset + 1];\n        if (cmdLen < 8 || offset + cmdLen > len) break;\n        var cmdName = String.fromCharCode(\n          messageBytes[offset + 4],\n          messageBytes[offset + 5],\n          messageBytes[offset + 6],\n          messageBytes[offset + 7]\n        );\n        var payload = messageBytes.slice(offset + 8, offset + cmdLen);\n        this.handleCommand(cmdName, payload);\n        offset += cmdLen;\n      }\n    }\n\n    // Acknowledge packets from switcher (ACK request bit 0x08 or received packet with ID)\n    if ((flagByte & 0x08) !== 0 || incSwitcherPacketId > 0) {\n      this.sendAck(transport, this.remotePacketId);\n    }\n  },\n\n  sendAck: function(transport, ackId) {\n    if (this.sessionId === 0) return;\n    var packet = [\n      0x80, 0x0C,\n      (this.sessionId >> 8) & 0xFF, this.sessionId & 0xFF,\n      (ackId >> 8) & 0xFF, ackId & 0xFF,\n      0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n    ];\n    transport.sendBytes(packet);\n  },\n\n  onHeartbeat: function(transport) {\n    if (this.connected && this.sessionId !== 0) {\n      this.sendAck(transport, this.remotePacketId);\n\n      var now = Date.now();\n      var watchdogTimeout = (this.config && this.config.handshakeTimeoutSeconds) ? (parseFloat(this.config.handshakeTimeoutSeconds) * 1000) : 30000;\n      if (now - this.lastReceivedTime > watchdogTimeout) {\n        this.connected = false;\n        engine.setStatus('connecting', 'Re-syncing with ATEM...');\n        this.sendSyn(transport);\n        var self = this;\n        if (this.handshakeInterval) clearInterval(this.handshakeInterval);\n        this.handshakeInterval = setInterval(function() {\n          if (!self.connected) {\n            self.sendSyn(transport);\n          } else {\n            clearInterval(self.handshakeInterval);\n            self.handshakeInterval = null;\n          }\n        }, 1000);\n      }\n    }\n  },\n\n  handleCommand: function(name, payload) {\n    // 1. Real hardware product name string (e.g. 'ATEM 4 M/E Constellation HD')\n    if (name === '_pin' && payload.length > 0) {\n      var pinStr = '';\n      for (var i = 0; i < payload.length; i++) {\n        if (payload[i] === 0) break;\n        pinStr += String.fromCharCode(payload[i]);\n      }\n      pinStr = pinStr.trim();\n      if (pinStr.length > 0) {\n        engine.setVariable('atem_model', pinStr);\n      }\n    }\n    // 2. Topology Information\n    else if (name === '_top' && payload.length >= 2) {\n      var meCount = payload[0];\n      var sourceCount = payload[1];\n      engine.setVariable('atem_me_count', String(meCount));\n      engine.setVariable('atem_source_count', String(sourceCount));\n    }\n    // 3. Protocol Version\n    else if (name === '_ver' && payload.length >= 4) {\n      var vMajor = (payload[0] << 8) | payload[1];\n      var vMinor = (payload[2] << 8) | payload[3];\n      engine.setVariable('atem_protocol_version', vMajor + '.' + vMinor);\n    }\n    // 4. Program Input\n    else if ((name === 'PrIn' || name === 'CPgI') && payload.length >= 4) {\n      var me = payload[0];\n      var input = (payload[2] << 8) | payload[3];\n      engine.setVariable('atem_me_' + (me + 1) + '_program_input', String(input));\n      if (me === 0) {\n        engine.setVariable('atem_program_input', String(input));\n      }\n    }\n    // 5. Preview Input\n    else if ((name === 'PrvI' || name === 'CPvI') && payload.length >= 4) {\n      var me = payload[0];\n      var input = (payload[2] << 8) | payload[3];\n      engine.setVariable('atem_me_' + (me + 1) + '_preview_input', String(input));\n      if (me === 0) {\n        engine.setVariable('atem_preview_input', String(input));\n      }\n    }\n    // 6. Transition State\n    else if ((name === 'TrSS' || name === 'TrPr') && payload.length >= 2) {\n      var me = payload[0];\n      var inTrans = payload[1] !== 0 ? 'true' : 'false';\n      engine.setVariable('atem_me_' + (me + 1) + '_in_transition', inTrans);\n      if (me === 0) {\n        engine.setVariable('atem_in_transition', inTrans);\n      }\n    }\n    // 7. Fade to Black State\n    else if ((name === 'FTSA' || name === 'FtbS') && payload.length >= 2) {\n      var me = payload[0];\n      var ftb = payload[1] !== 0 ? 'true' : 'false';\n      engine.setVariable('atem_me_' + (me + 1) + '_ftb_active', ftb);\n      if (me === 0) {\n        engine.setVariable('atem_ftb_active', ftb);\n      }\n    }\n    // 8. Input Properties & Labels\n    else if (name === 'InPr' && payload.length >= 26) {\n      var inId = (payload[0] << 8) | payload[1];\n      var longName = '';\n      for (var j = 2; j < 22; j++) {\n        if (payload[j] === 0) break;\n        longName += String.fromCharCode(payload[j]);\n      }\n      longName = longName.trim();\n      if (longName.length > 0) {\n        engine.setVariable('atem_input_' + inId + '_name', longName);\n      }\n    }\n  },\n\n  onAction: function(transport, actionId, params) {\n    params = params || {};\n    var rawAct = String(actionId || '').toLowerCase().trim();\n    var act = rawAct.replace(/^\\/+/, '');\n    if (act.indexOf('/') !== -1) {\n      act = act.split('/').pop();\n    }\n    act = act.replace(/^atem_/, '').replace(/^atem\\./, '').replace(/^atem-/, '');\n\n    var isAllMe = String(params.me_index || params.me || '').toLowerCase() === 'all';\n    var meCount = parseInt(engine.getVariable('atem_me_count') || '1', 10);\n    if (isNaN(meCount) || meCount < 1) meCount = 1;\n\n    var defaultMe = (this.config && this.config.me_index) ? this.config.me_index : '1';\n    var me = parseInt(params.me_index || params.me || defaultMe, 10) - 1;\n    if (isNaN(me) || me < 0) me = 0;\n\n    function getIntParam(keys, defaultVal) {\n      for (var i = 0; i < keys.length; i++) {\n        var k = keys[i];\n        if (params[k] !== undefined && params[k] !== null) {\n          var s = String(params[k]).trim();\n          if (s !== '') {\n            var digits = s.replace(/[^0-9]/g, '');\n            if (digits.length > 0) {\n              var parsed = parseInt(digits, 10);\n              if (!isNaN(parsed)) return parsed;\n            }\n          }\n        }\n      }\n      return defaultVal;\n    }\n\n    var self = this;\n    function sendToMe(cmd, payloadBuilder) {\n      if (isAllMe) {\n        for (var m = 0; m < meCount; m++) {\n          self.sendCommand(transport, cmd, payloadBuilder(m));\n        }\n      } else {\n        self.sendCommand(transport, cmd, payloadBuilder(me));\n      }\n    }\n\n    // --- GET / Query Actions (Read-Only, no commands sent to switcher) ---\n    if (act === 'get_program' || act === 'get_program_input' || act === 'get_pgm' || act === 'get_cpgi') {\n      var pgm = engine.getVariable('atem_me_' + (me + 1) + '_program_input') || engine.getVariable('atem_program_input') || '1';\n      return 'Program input is Input ' + pgm + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_preview' || act === 'get_preview_input' || act === 'get_pvw' || act === 'get_cpvi') {\n      var pvw = engine.getVariable('atem_me_' + (me + 1) + '_preview_input') || engine.getVariable('atem_preview_input') || '2';\n      return 'Preview input is Input ' + pvw + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_tally' || act === 'get_input_tally') {\n      var input = getIntParam(['input_id', 'input', 'value', 'param', 'source', 'cam', 'camera'], 1);\n      var pgm = parseInt(engine.getVariable('atem_me_' + (me + 1) + '_program_input') || engine.getVariable('atem_program_input') || '1', 10);\n      var pvw = parseInt(engine.getVariable('atem_me_' + (me + 1) + '_preview_input') || engine.getVariable('atem_preview_input') || '2', 10);\n      var state = (pgm === input) ? 'PROGRAM' : ((pvw === input) ? 'PREVIEW' : 'OFF');\n      return 'Input ' + input + ' tally: ' + state + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_transition' || act === 'get_transition_status' || act === 'get_in_transition') {\n      var inTrans = engine.getVariable('atem_me_' + (me + 1) + '_in_transition') || engine.getVariable('atem_in_transition') || 'false';\n      return 'In transition: ' + inTrans + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_ftb' || act === 'get_ftb_status' || act === 'get_fade_to_black') {\n      var ftb = engine.getVariable('atem_me_' + (me + 1) + '_ftb_active') || engine.getVariable('atem_ftb_active') || 'false';\n      return 'Fade to Black active: ' + ftb + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_status' || act === 'get_switcher_status') {\n      var model = engine.getVariable('atem_model') || 'ATEM Switcher';\n      var pgm = engine.getVariable('atem_program_input') || '1';\n      var pvw = engine.getVariable('atem_preview_input') || '2';\n      return model + ' | PGM: ' + pgm + ' | PVW: ' + pvw;\n    }\n\n    // --- SET / Mutating Actions (Sends commands to switcher) ---\n    if (act === 'cut' || act === 'dcut') {\n      sendToMe('DCut', function(m) { return [m, 0x00, 0x00, 0x00]; });\n      return 'Cut transition executed (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'auto' || act === 'auto_fade' || act === 'daut') {\n      sendToMe('DAut', function(m) { return [m, 0x00, 0x00, 0x00]; });\n      return 'Auto transition executed (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'set_program' || act === 'program_input' || act === 'cpgi' || act === 'program' || act === 'pgm') {\n      var input = getIntParam(['input_id', 'input', 'value', 'param', 'source', 'cam', 'camera'], 1);\n      sendToMe('CPgI', function(m) { return [m, 0x00, (input >> 8) & 0xFF, input & 0xFF]; });\n      engine.setVariable('atem_program_input', String(input));\n      engine.setVariable('atem_me_' + (me + 1) + '_program_input', String(input));\n      return 'Program input set to Input ' + input + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'set_preview' || act === 'preview_input' || act === 'cpvi' || act === 'preview' || act === 'pvw') {\n      var input = getIntParam(['input_id', 'input', 'value', 'param', 'source', 'cam', 'camera'], 2);\n      sendToMe('CPvI', function(m) { return [m, 0x00, (input >> 8) & 0xFF, input & 0xFF]; });\n      engine.setVariable('atem_preview_input', String(input));\n      engine.setVariable('atem_me_' + (me + 1) + '_preview_input', String(input));\n      return 'Preview input set to Input ' + input + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'ftb' || act === 'fade_to_black' || act === 'ftsa' || act === 'ftba') {\n      sendToMe('FtbA', function(m) { return [m, 0x02, 0x58, 0x99]; });\n      sendToMe('FTSA', function(m) { return [m, 0x00, 0x00, 0x00]; });\n      return 'Fade to Black toggled (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'run_macro' || act === 'macro' || act === 'mrun') {\n      var macroIdx = Math.max(0, getIntParam(['macro_index', 'macro_id', 'macro', 'value', 'param'], 1) - 1);\n      this.sendCommand(transport, 'MRUN', [(macroIdx >> 8) & 0xFF, macroIdx & 0xFF, 0x00, 0x00]);\n      return 'Macro ' + (macroIdx + 1) + ' triggered';\n    }\n\n    return 'Executed action ' + actionId;\n  },\n\n  sendCommand: function(transport, name, payload) {\n    if (this.sessionId === 0) {\n      console.log('Cannot sendCommand before sessionId is assigned');\n      return;\n    }\n    this.localPacketId = (this.localPacketId + 1) & 0x7FFF;\n    var packetId = this.localPacketId;\n    var cmdLen = 8 + payload.length;\n    var totalLen = 12 + cmdLen;\n    var flags = 0x08;\n    var packet = [\n      flags | ((totalLen >> 8) & 0x07), totalLen & 0xFF,\n      (this.sessionId >> 8) & 0xFF, this.sessionId & 0xFF,\n      (this.remotePacketId >> 8) & 0xFF, this.remotePacketId & 0xFF,\n      0x00, 0x00,\n      0x00, 0x00,\n      (packetId >> 8) & 0xFF, packetId & 0xFF,\n      (cmdLen >> 8) & 0xFF, cmdLen & 0xFF, 0x00, 0x00,\n      name.charCodeAt(0) & 0xFF, name.charCodeAt(1) & 0xFF, name.charCodeAt(2) & 0xFF, name.charCodeAt(3) & 0xFF\n    ];\n    for (var i = 0; i < payload.length; i++) {\n      packet.push(payload[i] & 0xFF);\n    }\n    transport.sendBytes(packet);\n  }\n};",
+  "driverScript": "module.exports = {\n  sessionId: 0,\n  remotePacketId: 0,\n  localPacketId: 0,\n  connected: false,\n  lastReceivedTime: 0,\n  config: {},\n  handshakeInterval: null,\n\n  onConnect: function(transport, config) {\n    this.sessionId = 0;\n    this.remotePacketId = 0;\n    this.localPacketId = 0;\n    this.connected = false;\n    this.lastReceivedTime = Date.now();\n    this.config = config || {};\n    var handshakeTimeout = (parseFloat(this.config.handshakeTimeoutSeconds) || 20.0) * 1000;\n    var startTime = Date.now();\n    engine.setStatus('connecting', 'Connecting to ATEM...');\n\n    var self = this;\n    this.sendSyn(transport);\n\n    if (this.handshakeInterval) clearInterval(this.handshakeInterval);\n    this.handshakeInterval = setInterval(function() {\n      if (!self.connected) {\n        if (Date.now() - startTime > handshakeTimeout) {\n          clearInterval(self.handshakeInterval);\n          self.handshakeInterval = null;\n          engine.setStatus('failed', 'Handshake timed out after ' + (handshakeTimeout / 1000) + 's');\n          return;\n        }\n        self.sendSyn(transport);\n      } else {\n        clearInterval(self.handshakeInterval);\n        self.handshakeInterval = null;\n      }\n    }, 1000);\n  },\n\n  sendSyn: function(transport) {\n    var synPacket = [\n      0x10, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,\n      0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,\n      0x00, 0x00, 0x00, 0x00\n    ];\n    transport.sendBytes(synPacket);\n  },\n\n  onMessage: function(transport, messageText, messageBytes) {\n    if (!messageBytes || messageBytes.length < 12) return;\n    this.lastReceivedTime = Date.now();\n\n    var flagByte = messageBytes[0];\n    var len = ((flagByte & 0x07) << 8) | messageBytes[1];\n    var incSessionId = (messageBytes[2] << 8) | messageBytes[3];\n    var incRemoteAckId = (messageBytes[4] << 8) | messageBytes[5];\n    var incSwitcherPacketId = (messageBytes[10] << 8) | messageBytes[11];\n\n    // ConnectAck from ATEM (bit 4: 0x10)\n    if ((flagByte & 0x10) !== 0) {\n      if (messageBytes.length >= 16) {\n        this.sessionId = ((messageBytes[14] | 0x80) << 8) | messageBytes[15];\n      } else {\n        this.sessionId = incSessionId || 0x8000;\n      }\n      this.remotePacketId = 0;\n      this.localPacketId = 0;\n      this.connected = true;\n      this.lastReceivedTime = Date.now();\n      if (this.handshakeInterval) {\n        clearInterval(this.handshakeInterval);\n        this.handshakeInterval = null;\n      }\n      engine.setStatus('connected', 'Connected to ATEM');\n      this.sendAck(transport, 0);\n      return;\n    }\n\n    if (incSessionId !== 0) {\n      this.sessionId = incSessionId;\n    }\n\n    if (incSwitcherPacketId > this.remotePacketId || (this.remotePacketId > 60000 && incSwitcherPacketId < 1000)) {\n      this.remotePacketId = incSwitcherPacketId;\n    }\n\n    // Process subcommands\n    if (len > 12 && messageBytes.length >= len) {\n      var offset = 12;\n      while (offset + 8 <= len) {\n        var cmdLen = (messageBytes[offset] << 8) | messageBytes[offset + 1];\n        if (cmdLen < 8 || offset + cmdLen > len) break;\n        var cmdName = String.fromCharCode(\n          messageBytes[offset + 4],\n          messageBytes[offset + 5],\n          messageBytes[offset + 6],\n          messageBytes[offset + 7]\n        );\n        var payload = messageBytes.slice(offset + 8, offset + cmdLen);\n        this.handleCommand(cmdName, payload);\n        offset += cmdLen;\n      }\n    }\n\n    // Acknowledge packets from switcher (ACK request bit 0x08 or received packet with ID)\n    if ((flagByte & 0x08) !== 0 || incSwitcherPacketId > 0) {\n      this.sendAck(transport, this.remotePacketId);\n    }\n  },\n\n  sendAck: function(transport, ackId) {\n    if (this.sessionId === 0) return;\n    var packet = [\n      0x80, 0x0C,\n      (this.sessionId >> 8) & 0xFF, this.sessionId & 0xFF,\n      (ackId >> 8) & 0xFF, ackId & 0xFF,\n      0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n    ];\n    transport.sendBytes(packet);\n  },\n\n  onHeartbeat: function(transport) {\n    if (this.connected && this.sessionId !== 0) {\n      this.sendAck(transport, this.remotePacketId);\n\n      var now = Date.now();\n      var watchdogTimeout = (this.config && this.config.handshakeTimeoutSeconds) ? (parseFloat(this.config.handshakeTimeoutSeconds) * 1000) : 30000;\n      if (now - this.lastReceivedTime > watchdogTimeout) {\n        this.connected = false;\n        engine.setStatus('connecting', 'Re-syncing with ATEM...');\n        this.sendSyn(transport);\n        var self = this;\n        if (this.handshakeInterval) clearInterval(this.handshakeInterval);\n        this.handshakeInterval = setInterval(function() {\n          if (!self.connected) {\n            self.sendSyn(transport);\n          } else {\n            clearInterval(self.handshakeInterval);\n            self.handshakeInterval = null;\n          }\n        }, 1000);\n      }\n    }\n  },\n\n  handleCommand: function(name, payload) {\n    // 1. Real hardware product name string (e.g. 'ATEM 4 M/E Constellation HD')\n    if (name === '_pin' && payload.length > 0) {\n      var pinStr = '';\n      for (var i = 0; i < payload.length; i++) {\n        if (payload[i] === 0) break;\n        pinStr += String.fromCharCode(payload[i]);\n      }\n      pinStr = pinStr.trim();\n      if (pinStr.length > 0) {\n        engine.setVariable('atem_model', pinStr);\n      }\n    }\n    // 2. Topology Information\n    else if (name === '_top' && payload.length >= 2) {\n      var meCount = payload[0];\n      var sourceCount = payload[1];\n      engine.setVariable('atem_me_count', String(meCount));\n      engine.setVariable('atem_source_count', String(sourceCount));\n    }\n    // 3. Protocol Version\n    else if (name === '_ver' && payload.length >= 4) {\n      var vMajor = (payload[0] << 8) | payload[1];\n      var vMinor = (payload[2] << 8) | payload[3];\n      engine.setVariable('atem_protocol_version', vMajor + '.' + vMinor);\n    }\n    // 4. Program Input\n    else if ((name === 'PrIn' || name === 'CPgI') && payload.length >= 4) {\n      var me = payload[0];\n      var input = (payload[2] << 8) | payload[3];\n      engine.setVariable('atem_me_' + (me + 1) + '_program_input', String(input));\n      if (me === 0) {\n        engine.setVariable('atem_program_input', String(input));\n      }\n    }\n    // 5. Preview Input\n    else if ((name === 'PrvI' || name === 'CPvI') && payload.length >= 4) {\n      var me = payload[0];\n      var input = (payload[2] << 8) | payload[3];\n      engine.setVariable('atem_me_' + (me + 1) + '_preview_input', String(input));\n      if (me === 0) {\n        engine.setVariable('atem_preview_input', String(input));\n      }\n    }\n    // 6. Transition State\n    else if ((name === 'TrSS' || name === 'TrPr') && payload.length >= 2) {\n      var me = payload[0];\n      var inTrans = payload[1] !== 0 ? 'true' : 'false';\n      engine.setVariable('atem_me_' + (me + 1) + '_in_transition', inTrans);\n      if (me === 0) {\n        engine.setVariable('atem_in_transition', inTrans);\n      }\n    }\n    // 7. Fade to Black State\n    else if ((name === 'FTSA' || name === 'FtbS') && payload.length >= 2) {\n      var me = payload[0];\n      var ftb = payload[1] !== 0 ? 'true' : 'false';\n      engine.setVariable('atem_me_' + (me + 1) + '_ftb_active', ftb);\n      if (me === 0) {\n        engine.setVariable('atem_ftb_active', ftb);\n      }\n    }\n    // 8. Input Properties & Labels\n    else if (name === 'InPr' && payload.length >= 26) {\n      var inId = (payload[0] << 8) | payload[1];\n      var longName = '';\n      for (var j = 2; j < 22; j++) {\n        if (payload[j] === 0) break;\n        longName += String.fromCharCode(payload[j]);\n      }\n      longName = longName.trim();\n      if (longName.length > 0) {\n        engine.setVariable('atem_input_' + inId + '_name', longName);\n      }\n    }\n    // 9. Macro Properties & Labels\n    else if (name === 'MPrp' && payload.length >= 8) {\n      var mIdx = (payload[0] << 8) | payload[1];\n      var isUsed = payload[2] !== 0;\n      if (isUsed) {\n        var nameLen = (payload[4] << 8) | payload[5];\n        var macroName = '';\n        var endIdx = Math.min(payload.length, 8 + nameLen);\n        for (var k = 8; k < endIdx; k++) {\n          if (payload[k] === 0) break;\n          macroName += String.fromCharCode(payload[k]);\n        }\n        macroName = macroName.trim();\n        if (macroName.length === 0) {\n          macroName = 'Macro ' + (mIdx + 1);\n        }\n        engine.setVariable('atem_macro_' + (mIdx + 1) + '_name', macroName);\n        engine.setVariable('atem_macro_' + (mIdx + 1) + '_used', 'true');\n      }\n    }\n    // 10. Macro Run Status\n    else if (name === 'MRPr' && payload.length >= 4) {\n      var state = payload[0];\n      var mIdx = (payload[1] << 8) | payload[2];\n      if (state === 1) {\n        engine.setVariable('atem_macro_running', 'true');\n        engine.setVariable('atem_macro_active_index', String(mIdx + 1));\n        engine.setVariable('atem_macro_waiting', 'false');\n      } else if (state === 2) {\n        engine.setVariable('atem_macro_running', 'true');\n        engine.setVariable('atem_macro_active_index', String(mIdx + 1));\n        engine.setVariable('atem_macro_waiting', 'true');\n      } else {\n        engine.setVariable('atem_macro_running', 'false');\n        engine.setVariable('atem_macro_active_index', '0');\n        engine.setVariable('atem_macro_waiting', 'false');\n      }\n    }\n  },\n\n  onAction: function(transport, actionId, params) {\n    params = params || {};\n    var rawAct = String(actionId || '').toLowerCase().trim();\n    var act = rawAct.replace(/^\\/+/, '');\n    if (act.indexOf('/') !== -1) {\n      act = act.split('/').pop();\n    }\n    act = act.replace(/^atem_/, '').replace(/^atem\\./, '').replace(/^atem-/, '');\n\n    var isAllMe = String(params.me_index || params.me || '').toLowerCase() === 'all';\n    var meCount = parseInt(engine.getVariable('atem_me_count') || '1', 10);\n    if (isNaN(meCount) || meCount < 1) meCount = 1;\n\n    var defaultMe = (this.config && this.config.me_index) ? this.config.me_index : '1';\n    var me = parseInt(params.me_index || params.me || defaultMe, 10) - 1;\n    if (isNaN(me) || me < 0) me = 0;\n\n    function getIntParam(keys, defaultVal) {\n      for (var i = 0; i < keys.length; i++) {\n        var k = keys[i];\n        if (params[k] !== undefined && params[k] !== null) {\n          var s = String(params[k]).trim();\n          if (s !== '') {\n            var digits = s.replace(/[^0-9]/g, '');\n            if (digits.length > 0) {\n              var parsed = parseInt(digits, 10);\n              if (!isNaN(parsed)) return parsed;\n            }\n          }\n        }\n      }\n      return defaultVal;\n    }\n\n    var self = this;\n    function sendToMe(cmd, payloadBuilder) {\n      if (isAllMe) {\n        for (var m = 0; m < meCount; m++) {\n          self.sendCommand(transport, cmd, payloadBuilder(m));\n        }\n      } else {\n        self.sendCommand(transport, cmd, payloadBuilder(me));\n      }\n    }\n\n    // --- GET / Query Actions (Read-Only, no commands sent to switcher) ---\n    if (act === 'get_program' || act === 'get_program_input' || act === 'get_pgm' || act === 'get_cpgi') {\n      var pgm = engine.getVariable('atem_me_' + (me + 1) + '_program_input') || engine.getVariable('atem_program_input') || '1';\n      return 'Program input is Input ' + pgm + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_preview' || act === 'get_preview_input' || act === 'get_pvw' || act === 'get_cpvi') {\n      var pvw = engine.getVariable('atem_me_' + (me + 1) + '_preview_input') || engine.getVariable('atem_preview_input') || '2';\n      return 'Preview input is Input ' + pvw + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_tally' || act === 'get_input_tally') {\n      var input = getIntParam(['input_id', 'input', 'value', 'param', 'source', 'cam', 'camera', 'number'], 1);\n      var pgm = parseInt(engine.getVariable('atem_me_' + (me + 1) + '_program_input') || engine.getVariable('atem_program_input') || '1', 10);\n      var pvw = parseInt(engine.getVariable('atem_me_' + (me + 1) + '_preview_input') || engine.getVariable('atem_preview_input') || '2', 10);\n      var state = (pgm === input) ? 'PROGRAM' : ((pvw === input) ? 'PREVIEW' : 'OFF');\n      return 'Input ' + input + ' tally: ' + state + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_transition' || act === 'get_transition_status' || act === 'get_in_transition') {\n      var inTrans = engine.getVariable('atem_me_' + (me + 1) + '_in_transition') || engine.getVariable('atem_in_transition') || 'false';\n      return 'In transition: ' + inTrans + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_ftb' || act === 'get_ftb_status' || act === 'get_fade_to_black') {\n      var ftb = engine.getVariable('atem_me_' + (me + 1) + '_ftb_active') || engine.getVariable('atem_ftb_active') || 'false';\n      return 'Fade to Black active: ' + ftb + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'get_macro' || act === 'get_macro_status') {\n      var isRunning = engine.getVariable('atem_macro_running') === 'true';\n      var activeIdx = engine.getVariable('atem_macro_active_index') || '0';\n      var isWaiting = engine.getVariable('atem_macro_waiting') === 'true';\n      if (isRunning) {\n        var mName = engine.getVariable('atem_macro_' + activeIdx + '_name') || ('Macro ' + activeIdx);\n        return 'Macro ' + activeIdx + ' (' + mName + ') running' + (isWaiting ? ' (waiting for user)' : '');\n      }\n      return 'No macro currently running';\n    } else if (act === 'get_status' || act === 'get_switcher_status') {\n      var model = engine.getVariable('atem_model') || 'ATEM Switcher';\n      var pgm = engine.getVariable('atem_program_input') || '1';\n      var pvw = engine.getVariable('atem_preview_input') || '2';\n      return model + ' | PGM: ' + pgm + ' | PVW: ' + pvw;\n    }\n\n    // --- SET / Mutating Actions (Sends commands to switcher) ---\n    if (act === 'cut' || act === 'dcut') {\n      sendToMe('DCut', function(m) { return [m, 0x00, 0x00, 0x00]; });\n      return 'Cut transition executed (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'auto' || act === 'auto_fade' || act === 'daut') {\n      sendToMe('DAut', function(m) { return [m, 0x00, 0x00, 0x00]; });\n      return 'Auto transition executed (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'set_program' || act === 'program_input' || act === 'cpgi' || act === 'program' || act === 'pgm') {\n      var input = getIntParam(['input_id', 'input', 'value', 'param', 'source', 'cam', 'camera', 'number'], 1);\n      sendToMe('CPgI', function(m) { return [m, 0x00, (input >> 8) & 0xFF, input & 0xFF]; });\n      engine.setVariable('atem_program_input', String(input));\n      engine.setVariable('atem_me_' + (me + 1) + '_program_input', String(input));\n      return 'Program input set to Input ' + input + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'set_preview' || act === 'preview_input' || act === 'cpvi' || act === 'preview' || act === 'pvw') {\n      var input = getIntParam(['input_id', 'input', 'value', 'param', 'source', 'cam', 'camera', 'number'], 2);\n      sendToMe('CPvI', function(m) { return [m, 0x00, (input >> 8) & 0xFF, input & 0xFF]; });\n      engine.setVariable('atem_preview_input', String(input));\n      engine.setVariable('atem_me_' + (me + 1) + '_preview_input', String(input));\n      return 'Preview input set to Input ' + input + ' (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'ftb' || act === 'fade_to_black' || act === 'ftba') {\n      sendToMe('FtbA', function(m) { return [m, 0x02, 0x58, 0x99]; });\n      return 'Fade to Black toggled (M/E ' + (isAllMe ? 'All' : (me + 1)) + ')';\n    } else if (act === 'run_macro' || act === 'macro' || act === 'mrun') {\n      var macroIdx = Math.max(0, getIntParam(['macro_index', 'macro_id', 'macro', 'value', 'param', 'number'], 1) - 1);\n      this.sendCommand(transport, 'MAct', [(macroIdx >> 8) & 0xFF, macroIdx & 0xFF, 0x00, 0x00]);\n      return 'Macro ' + (macroIdx + 1) + ' triggered';\n    } else if (act === 'stop_macro' || act === 'macro_stop') {\n      this.sendCommand(transport, 'MAct', [0xFF, 0xFF, 0x01, 0x00]);\n      return 'Macro execution stopped';\n    } else if (act === 'continue_macro' || act === 'macro_continue') {\n      this.sendCommand(transport, 'MAct', [0xFF, 0xFF, 0x04, 0x00]);\n      return 'Macro execution continued';\n    }\n\n    return 'Executed action ' + actionId;\n  },\n\n  sendCommand: function(transport, name, payload) {\n    if (this.sessionId === 0) {\n      console.log('Cannot sendCommand before sessionId is assigned');\n      return;\n    }\n    this.localPacketId = (this.localPacketId + 1) & 0x7FFF;\n    var packetId = this.localPacketId;\n    var cmdLen = 8 + payload.length;\n    var totalLen = 12 + cmdLen;\n    var flags = 0x08;\n    var packet = [\n      flags | ((totalLen >> 8) & 0x07), totalLen & 0xFF,\n      (this.sessionId >> 8) & 0xFF, this.sessionId & 0xFF,\n      (this.remotePacketId >> 8) & 0xFF, this.remotePacketId & 0xFF,\n      0x00, 0x00,\n      0x00, 0x00,\n      (packetId >> 8) & 0xFF, packetId & 0xFF,\n      (cmdLen >> 8) & 0xFF, cmdLen & 0xFF, 0x00, 0x00,\n      name.charCodeAt(0) & 0xFF, name.charCodeAt(1) & 0xFF, name.charCodeAt(2) & 0xFF, name.charCodeAt(3) & 0xFF\n    ];\n    for (var i = 0; i < payload.length; i++) {\n      packet.push(payload[i] & 0xFF);\n    }\n    transport.sendBytes(packet);\n  }\n};",
   "variables": [
     {
       "id": "atem_program_input",
@@ -104,8 +104,29 @@
       "id": "atem_model",
       "name": "Switcher Model",
       "descriptionText": "Connected switcher hardware model name",
-      "sampleValue": "ATEM Mini Pro",
+      "sampleValue": "ATEM 4 M/E Constellation HD",
       "variableType": "String"
+    },
+    {
+      "id": "atem_macro_running",
+      "name": "Macro Running",
+      "descriptionText": "Whether any macro sequence is actively executing",
+      "sampleValue": "false",
+      "variableType": "Boolean"
+    },
+    {
+      "id": "atem_macro_active_index",
+      "name": "Active Macro Index",
+      "descriptionText": "Index of the macro currently running (or 0)",
+      "sampleValue": "0",
+      "variableType": "Number"
+    },
+    {
+      "id": "atem_macro_waiting",
+      "name": "Macro Waiting",
+      "descriptionText": "Whether executing macro is paused waiting for user input",
+      "sampleValue": "false",
+      "variableType": "Boolean"
     }
   ],
   "actions": [
@@ -113,25 +134,43 @@
       "id": "atem_cut",
       "title": "ATEM: Cut Transition",
       "subtitle": "Instant switch program to preview",
-      "descriptionText": "Performs an instant hard cut transition between program and preview buses on M/E 1.",
+      "descriptionText": "Performs an instant hard cut transition between program and preview buses.",
       "iconName": "scissors",
       "iconColorHex": "#FF6D00",
       "connectionType": "CUSTOM",
       "defaultPort": "9910",
+      "inputs": [
+        {
+          "id": "me_index",
+          "label": "Mix Effects Bus (M/E)",
+          "type": "Dropdown",
+          "defaultValue": "1",
+          "dropdownChoices": ["1", "2", "3", "4", "all"]
+        }
+      ],
       "oscPath": "cut",
-      "oscValue": "1"
+      "oscValue": "{me_index}"
     },
     {
       "id": "atem_auto_fade",
       "title": "ATEM: Auto Transition",
       "subtitle": "Smooth dissolve transition",
-      "descriptionText": "Triggers the current Auto transition (Mix, Dip, Wipe, or DVE) on M/E 1.",
+      "descriptionText": "Triggers the current Auto transition (Mix, Dip, Wipe, or DVE).",
       "iconName": "sparkles",
       "iconColorHex": "#FF9100",
       "connectionType": "CUSTOM",
       "defaultPort": "9910",
+      "inputs": [
+        {
+          "id": "me_index",
+          "label": "Mix Effects Bus (M/E)",
+          "type": "Dropdown",
+          "defaultValue": "1",
+          "dropdownChoices": ["1", "2", "3", "4", "all"]
+        }
+      ],
       "oscPath": "auto",
-      "oscValue": "1"
+      "oscValue": "{me_index}"
     },
     {
       "id": "atem_program_input",
@@ -152,6 +191,13 @@
           "dynamicSource": "variables:atem_input_*_name",
           "valueTemplate": "{id}",
           "labelTemplate": "{name} (Input {id})"
+        },
+        {
+          "id": "me_index",
+          "label": "Mix Effects Bus (M/E)",
+          "type": "Dropdown",
+          "defaultValue": "1",
+          "dropdownChoices": ["1", "2", "3", "4", "all"]
         }
       ],
       "oscPath": "set_program",
@@ -176,6 +222,13 @@
           "dynamicSource": "variables:atem_input_*_name",
           "valueTemplate": "{id}",
           "labelTemplate": "{name} (Input {id})"
+        },
+        {
+          "id": "me_index",
+          "label": "Mix Effects Bus (M/E)",
+          "type": "Dropdown",
+          "defaultValue": "1",
+          "dropdownChoices": ["1", "2", "3", "4", "all"]
         }
       ],
       "oscPath": "set_preview",
@@ -190,6 +243,15 @@
       "iconColorHex": "#212121",
       "connectionType": "CUSTOM",
       "defaultPort": "9910",
+      "inputs": [
+        {
+          "id": "me_index",
+          "label": "Mix Effects Bus (M/E)",
+          "type": "Dropdown",
+          "defaultValue": "1",
+          "dropdownChoices": ["1", "2", "3", "4", "all"]
+        }
+      ],
       "oscPath": "ftb",
       "oscValue": "1"
     },
@@ -205,14 +267,49 @@
       "inputs": [
         {
           "id": "macro_index",
-          "label": "Macro Index",
-          "type": "Number",
+          "label": "Macro",
+          "type": "Dropdown",
           "defaultValue": "1",
-          "placeholder": "1-100"
+          "dropdownChoices": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+          "dynamicSource": "variables:atem_macro_*_name",
+          "valueTemplate": "{id}",
+          "labelTemplate": "{name} (Macro {id})"
         }
       ],
       "oscPath": "run_macro",
-      "oscValue": "{macro_index}"
+      "oscValue": "{macro_index}",
+      "dynamicTitleParsingRule": "MACRO {macro_index}",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{atem_macro_active_index}} == {macro_index}",
+          "colorName": "Red"
+        }
+      ]
+    },
+    {
+      "id": "atem_stop_macro",
+      "title": "ATEM: Stop Macro",
+      "subtitle": "Halt active macro",
+      "descriptionText": "Stops any macro currently running or paused on the ATEM switcher.",
+      "iconName": "stop.circle.fill",
+      "iconColorHex": "#E53935",
+      "connectionType": "CUSTOM",
+      "defaultPort": "9910",
+      "oscPath": "stop_macro",
+      "oscValue": "1"
+    },
+    {
+      "id": "atem_continue_macro",
+      "title": "ATEM: Continue Macro",
+      "subtitle": "Resume paused macro",
+      "descriptionText": "Resumes a running macro that is waiting for user action.",
+      "iconName": "play.circle.fill",
+      "iconColorHex": "#43A047",
+      "connectionType": "CUSTOM",
+      "defaultPort": "9910",
+      "oscPath": "continue_macro",
+      "oscValue": "1"
     },
     {
       "id": "atem_get_program_input",
@@ -329,7 +426,7 @@
       "id": "atem_get_transition_status",
       "title": "ATEM: Get Transition Status",
       "subtitle": "Check in-transition state",
-      "descriptionText": "Queries whether an auto transition is currently active on M/E 1.",
+      "descriptionText": "Queries whether an auto transition is currently active.",
       "iconName": "sparkles.rectangle.stack",
       "iconColorHex": "#FF9100",
       "connectionType": "CUSTOM",
@@ -367,6 +464,31 @@
           "id": "c2",
           "condition": "{{atem_ftb_active}} == false",
           "colorName": "Default"
+        }
+      ]
+    },
+    {
+      "id": "atem_get_macro_status",
+      "title": "ATEM: Get Macro Status",
+      "subtitle": "Check macro playback state",
+      "descriptionText": "Queries whether any hardware macro is currently running on the switcher.",
+      "iconName": "bolt.circle.fill",
+      "iconColorHex": "#00B0FF",
+      "connectionType": "CUSTOM",
+      "defaultPort": "9910",
+      "oscPath": "get_macro",
+      "oscValue": "1",
+      "dynamicTitleParsingRule": "MACRO",
+      "dynamicColorRules": [
+        {
+          "id": "c1",
+          "condition": "{{atem_macro_running}} == true",
+          "colorName": "Red"
+        },
+        {
+          "id": "c2",
+          "condition": "{{atem_macro_waiting}} == true",
+          "colorName": "Yellow"
         }
       ]
     },
